@@ -52,12 +52,6 @@ class OllamaClient:
             return json.loads(resp.read().decode())
 
     def context_limit(self) -> int:
-        """Largest context the loaded model advertises, via /api/show.
-
-        model_info keys are architecture-scoped ("gemma4.context_length",
-        "qwen2.context_length", ...), so match on the suffix rather than
-        hardcoding per-model names.
-        """
         if self._num_ctx is not None:
             return self._num_ctx
         try:

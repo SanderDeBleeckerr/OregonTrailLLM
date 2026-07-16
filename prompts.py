@@ -187,7 +187,6 @@ oxen, and heals nobody -- so those keys simply do not appear."""
 
 
 def narrate_prompt(state_text: str, history: str, extra: str = "") -> str:
-    """Call 1: the story and the three choices, with no numbers attached."""
     return (
         f"{BASE}\n{NARRATE_SCHEMA}\n\nRecent events:\n{history}\n\n"
         f"{extra}{state_text}\nGenerate the next turn."
@@ -195,7 +194,6 @@ def narrate_prompt(state_text: str, history: str, extra: str = "") -> str:
 
 
 def effects_prompt(state_text: str, narrative: str, option_texts: list[str]) -> str:
-    """Call 2: the numbers for actions that have already been written."""
     actions = "\n".join(f"{i}. {t}" for i, t in enumerate(option_texts, 1))
     return (
         f"{SCORER_BASE}\n{SCORER_SCHEMA}\n\n{SCORER_RULES}\n\n{COHERENCE}\n\n"

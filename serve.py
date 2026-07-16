@@ -43,7 +43,6 @@ GAMES_LOCK = threading.Lock()
 
 
 def view(state: GameState) -> dict:
-    """Everything the front end needs to draw the state panel."""
     d = state_dict(state)
     d.update(
         trail_miles=TRAIL_MILES,
@@ -58,7 +57,6 @@ def view(state: GameState) -> dict:
 
 
 def ask_json(game: dict, prompt: str, temperature: float, valid) -> dict:
-    """Call the model until it returns JSON that `valid` accepts."""
     last_raw = ""
     for _ in range(MAX_PARSE_MISSES):
         last_raw = game["client"].generate(prompt, temperature=temperature)
@@ -80,14 +78,6 @@ def _has_options(d: dict) -> bool:
 
 
 def generate_turn(game: dict) -> dict:
-    """Ask the game master for the next turn. Raises RuntimeError if it can't.
-
-    With `scorer` on this is two calls: a narrator invents the day and the
-    three choices, then a scorekeeper prices those choices. The split exists
-    because one call doing both reliably proposed effects that contradicted
-    the action it had just written. Either way the result is only a proposal:
-    engine.check_rules is still the referee.
-    """
     state: GameState = game["state"]
     state_text = "Current true state: " + state.summary()
     history = game["history"][-4000:]
@@ -140,7 +130,6 @@ def new_game(model: str, strategy: str, host: str, scorer: bool) -> dict:
 
 
 def choose(game: dict, index: int) -> dict:
-    """Apply the player's pick, then produce the following turn."""
     state: GameState = game["state"]
     options = game.get("turn", {}).get("options") or []
     if not 0 <= index < len(options):

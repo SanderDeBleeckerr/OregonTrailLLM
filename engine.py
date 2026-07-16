@@ -88,7 +88,6 @@ EFFECT_KEYS = ("food", "oxen", "bullets", "money", "miles")
 
 
 def extract_json(raw: str) -> dict | None:
-    """Pull the first JSON object out of a possibly chatty response."""
     cleaned = re.sub(r"```(?:json)?", "", raw).strip().strip("`")
     try:
         return json.loads(cleaned)
@@ -112,11 +111,6 @@ def extract_json(raw: str) -> dict | None:
 
 
 def check_rules(state: GameState, action_text: str, effects: dict) -> list[str]:
-    """Return a list of hard-rule violations the LLM proposed.
-
-    These are the assignment's 'systematic and reproducible errors' — we log
-    them but the harness still clamps/repairs, so games always continue.
-    """
     v = []
     for k in EFFECT_KEYS:
         val = effects.get(k, 0)
@@ -172,7 +166,6 @@ def check_rules(state: GameState, action_text: str, effects: dict) -> list[str]:
 
 
 def apply_effects(state: GameState, effects: dict) -> GameState:
-    """Apply effects with clamping so the game never enters illegal state."""
     def num(x):
         return int(x) if isinstance(x, (int, float)) else 0
 

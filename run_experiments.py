@@ -48,7 +48,6 @@ def existing_keys(path: pathlib.Path) -> set[str]:
 
 
 def believed_vs_true(believed: dict, state: GameState) -> dict:
-    """Per-field absolute error between the model's belief and ground truth."""
     if not isinstance(believed, dict):
         return {"missing": True}
     err = {"missing": False}

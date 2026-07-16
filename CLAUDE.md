@@ -107,7 +107,7 @@ Additional logged metric: **thinking leakage rate** — how often `<think>` bloc
 
 - Python 3.10+. Type hints on all function signatures.
 - Only stdlib + matplotlib (for analysis plots). No langchain, no frameworks.
-- Write no comments. Code should be self-explanatory; only add a comment when the WHY is genuinely non-obvious (a hidden constraint, a subtle invariant, a workaround for a specific bug).
+- Write no comments and no docstrings. Code should be self-explanatory; only add a comment when the WHY is genuinely non-obvious (a hidden constraint, a subtle invariant, a workaround for a specific bug).
 - JSON parsing must handle: markdown fences, extra prose around JSON, partial/malformed output. Never crash on bad model output.
 - Every experiment record is one JSON line in a `.jsonl` file. Records have a `key` field for deduplication.
 - Print progress during experiments (`[e1] strategy item turn: result`).
