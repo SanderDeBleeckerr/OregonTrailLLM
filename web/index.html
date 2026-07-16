@@ -1,0 +1,502 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Westward Trail</title>
+<style>
+  :root {
+    --bg: #e9dcc0;
+    --panel: #f6efdd;
+    --panel-2: #efe5cb;
+    --ink: #2f2718;
+    --ink-soft: #6d6047;
+    --rule: #cbb994;
+    --accent: #8a3a1e;
+    --well: #4b6b3a;
+    --tired: #a9761b;
+    --sick: #9c3b2e;
+    --dead: #6b6b6b;
+    --shadow: 0 1px 0 rgba(0,0,0,.06), 0 6px 20px rgba(47,39,24,.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1b1710;
+      --panel: #26211a;
+      --panel-2: #2e2820;
+      --ink: #ece2cd;
+      --ink-soft: #a2947a;
+      --rule: #43392c;
+      --accent: #d97a4e;
+      --well: #8fb96f;
+      --tired: #dba43f;
+      --sick: #e0705d;
+      --dead: #7e7466;
+      --shadow: 0 6px 24px rgba(0,0,0,.35);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.55 ui-serif, Georgia, "Iowan Old Style", "Times New Roman", serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .mono { font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace; }
+
+  header {
+    border-bottom: 1px solid var(--rule);
+    padding: 18px 24px;
+    display: flex; flex-wrap: wrap; gap: 12px;
+    align-items: baseline; justify-content: space-between;
+  }
+  h1 {
+    margin: 0; font-size: 22px; letter-spacing: .14em; text-transform: uppercase;
+  }
+  .sub { color: var(--ink-soft); font-size: 13px; }
+
+  main { max-width: 1180px; margin: 0 auto; padding: 24px; }
+  .cols { display: grid; grid-template-columns: 340px 1fr; gap: 24px; align-items: start; }
+  @media (max-width: 900px) { .cols { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+    padding: 18px;
+  }
+  .card + .card { margin-top: 18px; }
+  h2 {
+    margin: 0 0 12px; font-size: 12px; letter-spacing: .16em;
+    text-transform: uppercase; color: var(--ink-soft); font-weight: 700;
+  }
+
+  /* ---- status line + resources */
+  /* Wraps rather than scrolls: this line is the one thing that must always be
+     readable in full, and the panel is narrower than the line on most screens. */
+  .statusline {
+    font-size: 12px; letter-spacing: .02em; color: var(--ink-soft);
+    padding-bottom: 12px; margin-bottom: 14px; border-bottom: 1px solid var(--rule);
+  }
+  .bar { height: 8px; background: var(--panel-2); border-radius: 999px; overflow: hidden;
+         border: 1px solid var(--rule); }
+  .bar > i { display: block; height: 100%; background: var(--accent); transition: width .5s ease; }
+  .miles { display: flex; justify-content: space-between; font-size: 12px;
+           color: var(--ink-soft); margin: 6px 0 2px; }
+
+  .res { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 16px; }
+  .res div { background: var(--panel-2); border: 1px solid var(--rule); border-radius: 8px;
+             padding: 8px; text-align: center; }
+  .res b { display: block; font-size: 19px; font-variant-numeric: tabular-nums; }
+  .res span { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-soft); }
+
+  /* ---- sentiment scale */
+  .scale { display: flex; gap: 3px; margin-top: 6px; }
+  .scale i {
+    flex: 1; height: 6px; border-radius: 999px; background: var(--panel-2);
+    border: 1px solid var(--rule);
+  }
+  .scale i.on { background: var(--accent); border-color: var(--accent); }
+  .sent-now { font-size: 18px; text-transform: capitalize; }
+
+  /* ---- party */
+  .person { padding: 11px 0; border-top: 1px solid var(--rule); }
+  .person:first-of-type { border-top: 0; }
+  .person .top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .person .name { font-weight: 700; min-width: 0; }
+  .person.gone .name { text-decoration: line-through; color: var(--dead); }
+  .person .note { font-size: 12px; color: var(--ink-soft); font-style: italic; }
+  .hp { height: 5px; margin-top: 7px; }
+  .hp > i { background: var(--well); }
+  .person.is-tired .hp > i { background: var(--tired); }
+  .person.is-sick .hp > i { background: var(--sick); }
+  .person.gone .hp > i { background: var(--dead); }
+  .chips { display: flex; gap: 5px; flex-wrap: wrap; flex: none; }
+  .chip {
+    font-size: 10px; letter-spacing: .09em; text-transform: uppercase;
+    border-radius: 999px; padding: 2px 8px; border: 1px solid currentColor; font-weight: 700;
+  }
+  .chip.well  { color: var(--well); }
+  .chip.tired { color: var(--tired); }
+  .chip.sick  { color: var(--sick); }
+  .chip.dead  { color: var(--dead); }
+  .tally { display: flex; gap: 14px; font-size: 12px; color: var(--ink-soft); margin-bottom: 12px; }
+  .tally b { color: var(--ink); font-variant-numeric: tabular-nums; }
+
+  /* ---- narrative + options */
+  .narrative { font-size: 19px; line-height: 1.6; margin: 0 0 20px; }
+  .opt {
+    display: flex; gap: 12px; align-items: flex-start; width: 100%; text-align: left;
+    background: var(--panel-2); color: inherit; font: inherit;
+    border: 1px solid var(--rule); border-radius: 8px; padding: 13px 15px;
+    cursor: pointer; transition: border-color .12s, transform .12s;
+  }
+  .opt + .opt { margin-top: 9px; }
+  .opt:hover:not(:disabled) { border-color: var(--accent); transform: translateX(2px); }
+  .opt:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .opt:disabled { opacity: .5; cursor: default; }
+  .opt kbd {
+    flex: none; width: 22px; height: 22px; display: grid; place-items: center;
+    border: 1px solid var(--rule); border-radius: 5px; font-size: 11px;
+    background: var(--panel); font-family: inherit;
+  }
+  .opt .fx { font-size: 11px; color: var(--ink-soft); margin-top: 4px; }
+
+  /* ---- journal + notes */
+  .note {
+    border-left: 3px solid var(--accent); background: var(--panel-2);
+    padding: 9px 12px; border-radius: 0 6px 6px 0; font-size: 13px; margin-bottom: 14px;
+  }
+  .note b { color: var(--accent); }
+  .log { max-height: 260px; overflow-y: auto; font-size: 13px; }
+  .log .row { padding: 9px 0; border-top: 1px dotted var(--rule); }
+  .log .row:first-child { border-top: 0; }
+  .log .d { color: var(--ink-soft); font-size: 11px; letter-spacing: .08em;
+            text-transform: uppercase; }
+
+  /* ---- setup + misc */
+  label { display: block; font-size: 12px; letter-spacing: .1em; text-transform: uppercase;
+          color: var(--ink-soft); margin-bottom: 5px; }
+  input, select, button.go {
+    font: inherit; color: var(--ink); background: var(--panel-2);
+    border: 1px solid var(--rule); border-radius: 7px; padding: 9px 11px; width: 100%;
+  }
+  button.go {
+    background: var(--accent); color: #fff; border-color: var(--accent);
+    cursor: pointer; font-weight: 700; letter-spacing: .06em;
+  }
+  button.go:hover { filter: brightness(1.08); }
+  .field + .field { margin-top: 12px; }
+  .check label {
+    display: flex; align-items: center; gap: 8px; text-transform: none;
+    letter-spacing: 0; font-size: 14px; color: var(--ink); margin: 0; cursor: pointer;
+  }
+  .check input { width: auto; accent-color: var(--accent); }
+  .hint { font-size: 12px; color: var(--ink-soft); margin-top: 5px; line-height: 1.45; }
+  .setup { max-width: 420px; margin: 40px auto; }
+  .err { color: var(--sick); font-size: 13px; margin-top: 12px; white-space: pre-wrap; }
+  .spinner {
+    display: inline-block; width: 13px; height: 13px; vertical-align: -2px;
+    border: 2px solid var(--rule); border-top-color: var(--accent);
+    border-radius: 50%; animation: spin .8s linear infinite; margin-right: 8px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+  }
+  .end { text-align: center; padding: 26px 0; }
+  .end .verdict { font-size: 26px; letter-spacing: .1em; text-transform: uppercase;
+                  color: var(--accent); }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Westward Trail</h1>
+  <div class="sub mono" id="meta">a local LLM is your game master</div>
+</header>
+
+<main>
+  <!-- setup ------------------------------------------------------------- -->
+  <section class="setup card" id="setup">
+    <h2>Outfit the wagon</h2>
+    <div class="field">
+      <label for="model">Ollama model</label>
+      <input id="model" class="mono" spellcheck="false">
+    </div>
+    <div class="field">
+      <label for="strategy">Prompt strategy</label>
+      <select id="strategy" class="mono"></select>
+    </div>
+    <div class="field check">
+      <label for="scorer"><input type="checkbox" id="scorer" checked>
+        Price the options with a separate scorer call</label>
+      <div class="hint">Two calls per turn: one writes the day, one assigns the
+        numbers under stricter rules. Slower, but the effects follow the fiction.</div>
+    </div>
+    <div class="field"><button class="go" id="begin">Set out west</button></div>
+    <div class="err" id="setup-err" hidden></div>
+  </section>
+
+  <!-- game --------------------------------------------------------------- -->
+  <div class="cols" id="game" hidden>
+    <aside>
+      <div class="card">
+        <h2>The wagon</h2>
+        <div class="statusline mono" id="statusline"></div>
+        <div class="miles mono"><span id="miles-label"></span><span id="miles-pct"></span></div>
+        <div class="bar"><i id="miles-bar"></i></div>
+        <div class="res mono">
+          <div><b id="r-food">—</b><span>food</span></div>
+          <div><b id="r-oxen">—</b><span>oxen</span></div>
+          <div><b id="r-bullets">—</b><span>bullets</span></div>
+          <div><b id="r-money">—</b><span>money</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Group sentiment</h2>
+        <div class="sent-now" id="sent-now">okay</div>
+        <div class="scale" id="sent-scale"></div>
+      </div>
+
+      <div class="card">
+        <h2>The party</h2>
+        <div class="tally mono" id="tally"></div>
+        <div id="party"></div>
+      </div>
+    </aside>
+
+    <section>
+      <div class="card">
+        <div id="turn">
+          <p class="narrative" id="narrative"></p>
+          <div id="options"></div>
+        </div>
+        <div class="end" id="end" hidden>
+          <div class="verdict" id="verdict"></div>
+          <p class="sub" id="end-note"></p>
+          <button class="go" id="again" style="max-width:220px;margin:0 auto;">Play again</button>
+        </div>
+        <div class="err" id="game-err" hidden></div>
+      </div>
+
+      <div class="card">
+        <h2>Journal</h2>
+        <div class="log" id="log"></div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const api = async (path, body) => {
+  const r = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await r.json().catch(() => ({ error: `HTTP ${r.status}` }));
+  if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+  return data;
+};
+
+let gameId = null;
+let options = [];
+let busy = false;
+
+// ---------------------------------------------------------------- rendering
+function renderState(s) {
+  $("statusline").textContent =
+    `Day ${s.day} | ${s.miles} mi | food ${s.food} | oxen ${s.oxen} `
+    + `| bullets ${s.bullets} | $${s.money}`;
+
+  const pct = Math.min(100, (s.miles / s.trail_miles) * 100);
+  $("miles-bar").style.width = pct + "%";
+  $("miles-label").textContent = `${s.miles} of ${s.trail_miles} mi`;
+  $("miles-pct").textContent = pct.toFixed(1) + "%";
+
+  $("r-food").textContent = s.food;
+  $("r-oxen").textContent = s.oxen;
+  $("r-bullets").textContent = s.bullets;
+  $("r-money").textContent = "$" + s.money;
+
+  $("sent-now").textContent = s.sentiment;
+  $("sent-scale").innerHTML = s.sentiments
+    .map((name, i) => {
+      const on = i <= s.sentiments.indexOf(s.sentiment) ? " on" : "";
+      return `<i class="${on.trim()}" title="${name}"></i>`;
+    })
+    .join("");
+
+  $("tally").innerHTML =
+    `<span>alive <b>${s.alive.length}</b>/${s.party.length}</span>`
+    + `<span>sick <b>${s.sick.length}</b></span>`
+    + `<span>tired <b>${s.tired.length}</b></span>`
+    + (s.dead.length ? `<span>lost <b>${s.dead.length}</b></span>` : "");
+
+  $("party").innerHTML = s.party.map((p) => {
+    const gone = p.health <= 0;
+    const cls = ["person", gone ? "gone" : "", p.sick ? "is-sick" : "",
+                 p.tired ? "is-tired" : ""].filter(Boolean).join(" ");
+    let chips = "";
+    if (gone) chips = `<span class="chip dead">lost</span>`;
+    else if (!p.sick && !p.tired) chips = `<span class="chip well">well</span>`;
+    else {
+      if (p.sick) chips += `<span class="chip sick">sick</span>`;
+      if (p.tired) chips += `<span class="chip tired">tired</span>`;
+    }
+    return `<div class="${cls}">
+      <div class="top">
+        <span class="name">${esc(p.name)} <span class="note">${p.age}, ${esc(p.note)}</span></span>
+        <span class="chips">${chips}</span>
+      </div>
+      <div class="bar hp"><i style="width:${Math.max(0, p.health)}%"></i></div>
+    </div>`;
+  }).join("");
+}
+
+function renderTurn(turn) {
+  $("narrative").textContent = turn.narrative;
+  options = turn.options;
+  $("options").innerHTML = options.map((o, i) => {
+    const fx = describeEffects(o.effects);
+    return `<button class="opt" data-i="${i}">
+      <kbd>${i + 1}</kbd>
+      <span>${esc(o.text)}${fx ? `<div class="fx mono">${esc(fx)}</div>` : ""}</span>
+    </button>`;
+  }).join("");
+  document.querySelectorAll(".opt").forEach((b) =>
+    b.addEventListener("click", () => pick(+b.dataset.i)));
+}
+
+// The model's *proposed* effects, shown before the referee clamps them --
+// seeing the claim next to the correction is the whole point of the project.
+function describeEffects(fx) {
+  const parts = [];
+  for (const k of ["miles", "food", "oxen", "bullets", "money"]) {
+    const v = fx[k];
+    if (typeof v === "number" && v !== 0) parts.push(`${v > 0 ? "+" : ""}${v} ${k}`);
+  }
+  for (const [n, hp] of Object.entries(fx.party_health || {})) {
+    if (typeof hp === "number" && hp !== 0) parts.push(`${n} ${hp > 0 ? "+" : ""}${hp} hp`);
+  }
+  for (const [n, st] of Object.entries(fx.party_status || {})) {
+    for (const f of ["sick", "tired"]) {
+      if (typeof st?.[f] === "boolean") parts.push(`${n} ${st[f] ? "" : "not "}${f}`);
+    }
+  }
+  if (typeof fx.sentiment === "string") parts.push(`mood → ${fx.sentiment}`);
+  return parts.join(" · ");
+}
+
+function renderLog(log) {
+  $("log").innerHTML = log.length
+    ? log.slice().reverse().map((e) => `<div class="row">
+        <div class="d mono">Day ${e.day}</div>
+        <div>${esc(e.narrative)}</div>
+        <div class="d">↳ ${esc(e.chosen)}</div>
+        ${e.violations.length
+          ? `<div class="d" style="color:var(--sick)">referee clamped: ${esc(e.violations.join(", "))}</div>`
+          : ""}
+      </div>`).join("")
+    : `<div class="d">Nothing has happened yet.</div>`;
+}
+
+const VERDICTS = {
+  won: ["You made it west", "The wagon reached the end of the trail."],
+  party_dead: ["The party is lost", "No one survived the journey west."],
+  stranded: ["Stranded", "No food, no oxen, no money. The trail ends here."],
+};
+
+function render(d) {
+  renderState(d.state);
+  renderLog(d.log);
+  // Notes are per-turn; drop the previous turn's before drawing this one.
+  document.querySelectorAll(".note.referee").forEach((n) => n.remove());
+  const done = d.state.finished;
+  $("turn").hidden = !!done;
+  $("end").hidden = !done;
+  if (done) {
+    const [verdict, note] = VERDICTS[done] || [done, ""];
+    $("verdict").textContent = verdict;
+    $("end-note").textContent = `${note} You lasted ${d.state.day - 1} days and `
+      + `covered ${d.state.miles} miles.`;
+  } else if (d.turn) {
+    renderTurn(d.turn);
+  }
+  if (d.violations?.length) showNote(d.violations);
+}
+
+function showNote(violations) {
+  const el = document.createElement("div");
+  el.className = "note referee";
+  el.innerHTML = `<b>Referee note:</b> the game master proposed illegal effects, `
+    + `clamped by the harness — <span class="mono">${esc(violations.join(", "))}</span>`;
+  $("turn").prepend(el);
+}
+
+const esc = (s) => String(s).replace(/[&<>"']/g,
+  (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+// ------------------------------------------------------------------ actions
+function setBusy(on, msg) {
+  busy = on;
+  document.querySelectorAll(".opt").forEach((b) => (b.disabled = on));
+  const existing = $("waiting");
+  if (existing) existing.remove();
+  if (on) {
+    const el = document.createElement("div");
+    el.id = "waiting";
+    el.className = "note mono";
+    el.innerHTML = `<span class="spinner"></span>${esc(msg)}`;
+    $("turn").prepend(el);
+  }
+}
+
+async function pick(i) {
+  if (busy) return;
+  setBusy(true, $("scorer").checked
+    ? "The game master is writing the day, then the scorer prices it…"
+    : "The game master is deciding what happens next…");
+  $("game-err").hidden = true;
+  try {
+    render(await api("/api/choose", { game_id: gameId, index: i }));
+  } catch (e) {
+    $("game-err").textContent = e.message;
+    $("game-err").hidden = false;
+  } finally {
+    setBusy(false);
+  }
+}
+
+async function begin() {
+  $("setup-err").hidden = true;
+  $("begin").disabled = true;
+  $("begin").innerHTML = `<span class="spinner"></span>Waking the game master…`;
+  try {
+    const scorer = $("scorer").checked;
+    const d = await api("/api/new", {
+      model: $("model").value.trim(),
+      strategy: $("strategy").value,
+      scorer,
+    });
+    gameId = d.game_id;
+    $("meta").textContent = `${$("model").value.trim()} · ${$("strategy").value}`
+      + ` · ${scorer ? "narrator + scorer" : "single call"}`;
+    $("setup").hidden = true;
+    $("game").hidden = false;
+    render(d);
+  } catch (e) {
+    $("setup-err").textContent = e.message;
+    $("setup-err").hidden = false;
+  } finally {
+    $("begin").disabled = false;
+    $("begin").textContent = "Set out west";
+  }
+}
+
+document.addEventListener("keydown", (e) => {
+  if ($("game").hidden || busy || $("turn").hidden) return;
+  const i = parseInt(e.key, 10) - 1;
+  if (i >= 0 && i < options.length) pick(i);
+});
+$("begin").addEventListener("click", begin);
+$("again").addEventListener("click", () => location.reload());
+
+(async () => {
+  const cfg = await (await fetch("/api/config")).json();
+  $("model").value = cfg.default_model;
+  $("scorer").checked = cfg.default_scorer;
+  $("strategy").innerHTML = cfg.strategies
+    .map((s) => `<option${s === cfg.default_strategy ? " selected" : ""}>${s}</option>`)
+    .join("");
+  $("meta").textContent = `${cfg.default_model} · ${cfg.default_strategy}`;
+})();
+</script>
+</body>
+</html>
