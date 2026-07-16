@@ -1,0 +1,15 @@
+Example of a valid response:
+{
+  "believed_state": {"day": 4, "miles": 62, "food": 340, "oxen": 4,
+                     "bullets": 60, "money": 150,
+                     "party_health": {"Marta": 100, "Jonas": 95, "Elsie": 100, "Ruben": 100}},
+  "narrative": "A rainstorm has swollen the creek ahead. The oxen balk at the muddy bank while Jonas studies the current.",
+  "options": [
+    {"text": "Ford the creek now", "effects": {"miles": 10, "party_health": {"Jonas": -10},
+      "party_status": {"Jonas": {"tired": true}}, "sentiment": "uneasy"}},
+    {"text": "Wait a day for the water to drop", "effects": {"miles": 0,
+      "party_status": {"Jonas": {"tired": false}}, "sentiment": "okay"}},
+    {"text": "Pay a local guide $15 for the safe crossing", "effects": {"money": -15,
+      "miles": 12, "sentiment": "hopeful"}}
+  ]
+}

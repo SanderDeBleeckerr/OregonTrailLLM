@@ -1,0 +1,18 @@
+Respond ONLY with a JSON object (no markdown fences, no prose outside JSON):
+{
+  "believed_state": {"day": int, "miles": int, "food": int, "oxen": int,
+                     "bullets": int, "money": int,
+                     "party_health": {"<name>": int, ...}},
+  "narrative": "2-3 sentences describing today's event on the trail",
+  "options": [
+    {"text": "short action description",
+     "effects": {"food": int, "oxen": int, "bullets": int, "money": int,
+                 "miles": int, "party_health": {"<name>": int},
+                 "party_status": {"<name>": {"sick": bool, "tired": bool}},
+                 "sentiment": "one of: despairing|grim|uneasy|okay|hopeful|elated"}},
+    ... exactly 3 options ...
+  ]
+}
+Effects are DELTAS (changes), negative for losses. Omit keys that don't change.
+EXCEPTION: "party_status" and "sentiment" are absolute values, not deltas --
+give the flag or mood as it would be AFTER the option is taken.

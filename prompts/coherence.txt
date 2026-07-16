@@ -1,0 +1,9 @@
+COHERENCE RULES -- every number must follow from the action's own words:
+1. Change ONLY what the action would actually change, and omit every other key. Most actions touch two or three keys, not all of them.
+2. Miles follow the action: resting, camping, waiting, treating someone, or trading in place is 0-5. Ordinary travel is 8-20. A hard forced march is up to 25.
+3. An action never consumes a resource it does not mention. Resting does not kill oxen. Talking does not spend bullets. Only hunting spends bullets.
+4. Health only rises when the action actually treats or rests someone, never for a member already at 100, and never by more than 40 in a day.
+5. Health only falls from real hardship the narrative describes -- fords, cold, hunger, accidents, overwork. Resting never injures anyone.
+6. Mark "tired" when the action exhausts someone and clear it when they genuinely rest. Mark "sick" only when the narrative gives a cause.
+7. Sentiment must match how the day actually went for the party, on the scale despairing < grim < uneasy < okay < hopeful < elated. Move it from the party's current mood only as far as the day's outcome earns.
+8. Do NOT deduct the party's daily meals -- the harness already eats 5 lbs per living member each day. Count only food the action itself gains or spends.

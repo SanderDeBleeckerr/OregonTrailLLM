@@ -1,10 +1,3 @@
-"""Westward Trail — an Oregon-Trail-style wagon journey where a local LLM is
-the game master, and a Python harness is the authoritative rules engine.
-
-The LLM narrates events and proposes numeric effects; the harness validates
-and applies them. Every disagreement between what the model *says* and what
-is *true* becomes a measurable data point for the scrutiny experiments.
-"""
 from __future__ import annotations
 
 import copy
@@ -17,10 +10,8 @@ MAX_MILES_PER_DAY = 25
 HUNT_BULLET_COST = 10
 MAX_FOOD_PER_HUNT = 100
 
-# Ordered worst -> best; the UI index into this list is load-bearing, not cosmetic.
 SENTIMENTS = ["despairing", "grim", "uneasy", "okay", "hopeful", "elated"]
 DEFAULT_SENTIMENT = "okay"
-# Below this, "no longer sick" is not something a single day can justify.
 SICK_RECOVERY_FLOOR = 30
 
 DEFAULT_PARTY = [

@@ -37,3 +37,7 @@ Game runs too slow the second LLM call can be a faster model.
 
 Just copying oregon trail is not very creative.
 Moving to something playfully funny like you're in past times trying to move your cart to the university of Harlem.
+
+# Stage 8
+
+Cleaned up project moved prompts to txt files so they re easier to read and manipulate

@@ -1,20 +1,3 @@
-"""Thin client for a local Ollama server.
-
-Usage:
-    client = OllamaClient()                       # DEFAULT_MODEL
-    client = OllamaClient(model="qwen2.5:32b")    # any pulled Ollama tag
-    text = client.generate("Classify: ...", temperature=0.0)
-
-Reasoning models (qwen3, deepseek-r1, ...) put their chain-of-thought in a
-separate `thinking` field and leave `response` empty, which reads to the rest
-of the harness as an unparseable turn. We turn thinking off at the API level
-so the whole token budget goes to the JSON we actually asked for.
-
-Ollama also defaults to a 4096-token context regardless of what the model
-supports, which silently truncates the oldest history first -- exactly where
-the party intro the memory quizzes probe lives. We ask the server what the
-loaded model supports and use that.
-"""
 from __future__ import annotations
 
 import json

@@ -1,0 +1,15 @@
+Respond ONLY with a JSON object (no markdown fences, no prose outside JSON):
+{
+  "believed_state": {"day": int, "miles": int, "food": int, "oxen": int,
+                     "bullets": int, "money": int,
+                     "party_health": {"<name>": int, ...}},
+  "narrative": "2-3 sentences describing today's event on the trail",
+  "options": [
+    {"text": "short action description"},
+    ... exactly 3 options ...
+  ]
+}
+Write NO numbers or effects for the options -- a separate scorekeeper assigns
+the consequences. Each option must be a concrete action the party could take today,
+and the three must differ meaningfully (e.g. push on / wait / spend something).
+believed_state must reflect the game BEFORE today's options are taken.

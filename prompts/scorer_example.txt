@@ -1,0 +1,15 @@
+Example, for a party of 4 whose mood is "okay" and whose members are all at full health:
+
+Today's event: A rainstorm has swollen the creek ahead. The oxen balk at the muddy bank.
+Actions:
+1. Ford the creek now
+2. Wait a day for the water to drop
+3. Pay a local guide $15 for the safe crossing
+
+{"effects": [
+  {"miles": 10, "party_health": {"Jonas": -10}, "party_status": {"Jonas": {"tired": true}}, "sentiment": "uneasy"},
+  {"miles": 0, "sentiment": "okay"},
+  {"money": -15, "miles": 12, "sentiment": "hopeful"}
+]}
+Note what is absent: waiting spends no food beyond the automatic meals, costs no
+oxen, and heals nobody -- so those keys simply do not appear.
