@@ -55,6 +55,13 @@
     margin: 0; font-size: 22px; letter-spacing: .14em; text-transform: uppercase;
   }
   .sub { color: var(--ink-soft); font-size: 13px; }
+  .header-right { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .devmode {
+    display: flex; align-items: center; gap: 6px; font-size: 11px;
+    letter-spacing: .1em; text-transform: uppercase; color: var(--ink-soft);
+    cursor: pointer; user-select: none;
+  }
+  .devmode input { accent-color: var(--accent); cursor: pointer; }
 
   main { max-width: 1180px; margin: 0 auto; padding: 24px; }
   .cols { display: grid; grid-template-columns: 340px 1fr; gap: 24px; align-items: start; }
@@ -91,15 +98,6 @@
              padding: 8px; text-align: center; }
   .res b { display: block; font-size: 19px; font-variant-numeric: tabular-nums; }
   .res span { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-soft); }
-
-  /* ---- sentiment scale */
-  .scale { display: flex; gap: 3px; margin-top: 6px; }
-  .scale i {
-    flex: 1; height: 6px; border-radius: 999px; background: var(--panel-2);
-    border: 1px solid var(--rule);
-  }
-  .scale i.on { background: var(--accent); border-color: var(--accent); }
-  .sent-now { font-size: 18px; text-transform: capitalize; }
 
   /* ---- party */
   .person { padding: 11px 0; border-top: 1px solid var(--rule); }
@@ -196,7 +194,12 @@
 
 <header>
   <h1>Westward Trail</h1>
-  <div class="sub mono" id="meta">a local LLM is your game master</div>
+  <div class="header-right">
+    <label class="devmode" for="devmode"
+      title="Show each option's proposed effects before you choose -- spoils the surprise, useful for testing.">
+      <input type="checkbox" id="devmode">Dev mode
+    </label>
+  </div>
 </header>
 
 <main>
@@ -235,12 +238,6 @@
           <div><b id="r-bullets">—</b><span>bullets</span></div>
           <div><b id="r-money">—</b><span>money</span></div>
         </div>
-      </div>
-
-      <div class="card">
-        <h2>Group sentiment</h2>
-        <div class="sent-now" id="sent-now">okay</div>
-        <div class="scale" id="sent-scale"></div>
       </div>
 
       <div class="card">
@@ -288,6 +285,8 @@ const api = async (path, body) => {
 let gameId = null;
 let options = [];
 let busy = false;
+let lastTurn = null;
+let devMode = localStorage.getItem("wt-devmode") === "1";
 
 // ---------------------------------------------------------------- rendering
 function renderState(s) {
@@ -304,14 +303,6 @@ function renderState(s) {
   $("r-oxen").textContent = s.oxen;
   $("r-bullets").textContent = s.bullets;
   $("r-money").textContent = "$" + s.money;
-
-  $("sent-now").textContent = s.sentiment;
-  $("sent-scale").innerHTML = s.sentiments
-    .map((name, i) => {
-      const on = i <= s.sentiments.indexOf(s.sentiment) ? " on" : "";
-      return `<i class="${on.trim()}" title="${name}"></i>`;
-    })
-    .join("");
 
   $("tally").innerHTML =
     `<span>alive <b>${s.alive.length}</b>/${s.party.length}</span>`
@@ -341,10 +332,11 @@ function renderState(s) {
 }
 
 function renderTurn(turn) {
+  lastTurn = turn;
   $("narrative").textContent = turn.narrative;
   options = turn.options;
   $("options").innerHTML = options.map((o, i) => {
-    const fx = describeEffects(o.effects);
+    const fx = devMode ? describeEffects(o.effects) : "";
     return `<button class="opt" data-i="${i}">
       <kbd>${i + 1}</kbd>
       <span>${esc(o.text)}${fx ? `<div class="fx mono">${esc(fx)}</div>` : ""}</span>
@@ -354,8 +346,10 @@ function renderTurn(turn) {
     b.addEventListener("click", () => pick(+b.dataset.i)));
 }
 
-// The model's *proposed* effects, shown before the referee clamps them --
-// seeing the claim next to the correction is the whole point of the project.
+// Dev mode shows the model's *proposed* effects before you choose -- useful for
+// scrutinizing the game master, but it spoils the whole point of playing. Off by
+// default; the journal shows the real repercussions after a choice regardless,
+// since by then they're history rather than a spoiler.
 function describeEffects(fx) {
   const parts = [];
   for (const k of ["miles", "food", "oxen", "bullets", "money"]) {
@@ -370,20 +364,23 @@ function describeEffects(fx) {
       if (typeof st?.[f] === "boolean") parts.push(`${n} ${st[f] ? "" : "not "}${f}`);
     }
   }
-  if (typeof fx.sentiment === "string") parts.push(`mood → ${fx.sentiment}`);
   return parts.join(" · ");
 }
 
 function renderLog(log) {
   $("log").innerHTML = log.length
-    ? log.slice().reverse().map((e) => `<div class="row">
+    ? log.slice().reverse().map((e) => {
+        const fx = describeEffects(e.effects || {});
+        return `<div class="row">
         <div class="d mono">Day ${e.day}</div>
         <div>${esc(e.narrative)}</div>
         <div class="d">↳ ${esc(e.chosen)}</div>
+        ${fx ? `<div class="fx mono">${esc(fx)}</div>` : ""}
         ${e.violations.length
           ? `<div class="d" style="color:var(--sick)">referee clamped: ${esc(e.violations.join(", "))}</div>`
           : ""}
-      </div>`).join("")
+      </div>`;
+      }).join("")
     : `<div class="d">Nothing has happened yet.</div>`;
 }
 
@@ -438,11 +435,16 @@ function setBusy(on, msg) {
   }
 }
 
+const LOADING_LINES = [
+  "The wagon creaks onward…", "Trekking forward…", "Loading the carts…",
+  "Scouting the trail ahead…", "The oxen strain against the yoke…",
+  "Reading the sky for weather…", "Consulting the trail map…",
+  "The party breaks camp…", "Fording the unknown…",
+];
+
 async function pick(i) {
   if (busy) return;
-  setBusy(true, $("scorer").checked
-    ? "The game master is writing the day, then the scorer prices it…"
-    : "The game master is deciding what happens next…");
+  setBusy(true, LOADING_LINES[Math.floor(Math.random() * LOADING_LINES.length)]);
   $("game-err").hidden = true;
   try {
     render(await api("/api/choose", { game_id: gameId, index: i }));
@@ -466,8 +468,6 @@ async function begin() {
       scorer,
     });
     gameId = d.game_id;
-    $("meta").textContent = `${$("model").value.trim()} · ${$("strategy").value}`
-      + ` · ${scorer ? "narrator + scorer" : "single call"}`;
     $("setup").hidden = true;
     $("game").hidden = false;
     render(d);
@@ -487,6 +487,12 @@ document.addEventListener("keydown", (e) => {
 });
 $("begin").addEventListener("click", begin);
 $("again").addEventListener("click", () => location.reload());
+$("devmode").checked = devMode;
+$("devmode").addEventListener("change", () => {
+  devMode = $("devmode").checked;
+  localStorage.setItem("wt-devmode", devMode ? "1" : "0");
+  if (lastTurn && !$("turn").hidden) renderTurn(lastTurn);
+});
 
 (async () => {
   const cfg = await (await fetch("/api/config")).json();
@@ -495,7 +501,6 @@ $("again").addEventListener("click", () => location.reload());
   $("strategy").innerHTML = cfg.strategies
     .map((s) => `<option${s === cfg.default_strategy ? " selected" : ""}>${s}</option>`)
     .join("");
-  $("meta").textContent = `${cfg.default_model} · ${cfg.default_strategy}`;
 })();
 </script>
 </body>
