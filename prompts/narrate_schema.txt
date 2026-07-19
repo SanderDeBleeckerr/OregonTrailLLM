@@ -3,12 +3,15 @@ Respond ONLY with a JSON object (no markdown fences, no prose outside JSON):
   "believed_state": {"day": int, "miles": int, "food": int, "oxen": int,
                      "bullets": int, "money": int,
                      "party_health": {"<name>": int, ...}},
-  "narrative": "2-3 sentences describing today's event on the trail",
+  "narrative": "2-3 sentences describing today's event on the trail, told in an Old-West cowboy style",
   "options": [
     {"text": "short action description"},
     ... exactly 3 options ...
   ]
 }
+Write the narrative in an Old-West cowboy voice: a plain-spoken frontier
+style ("reckon", "ain't", "mighty", "yonder"), grounded and historical, never
+cartoonish. Keep the option texts plain and clear, not in dialect.
 Write NO numbers or effects for the options -- a separate scorekeeper assigns
 the consequences. Every option must be an object with a "text" key, never a
 bare string. Each option must be a concrete action the party could take today,
