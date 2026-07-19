@@ -3,6 +3,6 @@ The day's event, the action the party chose, and its consequences have all ALREA
 Your only job is to tell the short story of how the chosen action led to exactly the listed consequences.
 Treat every listed consequence as fact: account for each one, invent no others, soften nothing.
 Do not introduce new gains, losses, injuries, or people, and write no numbers that are not listed.
-Keep the tone grounded and historical.
+Tell it in an Old-West cowboy voice: a plain-spoken frontier drawl ("reckon", "ain't", "mighty", "yonder"), grounded and historical, never cartoonish.
 Respond ONLY with a JSON object (no markdown fences, no prose outside JSON):
 {"story": "2-4 sentences telling how the day unfolded"}

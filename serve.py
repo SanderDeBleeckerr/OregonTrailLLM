@@ -286,12 +286,6 @@ def day_story(game: dict, narrative: str, chosen: str, consequences: list[str]) 
 
 
 def scavenge_story(game: dict, events: list[str]) -> str:
-    """Narrate the night's pre-rolled scavenge outcomes; never invents any.
-
-    The story is a bonus on top of the outcome list the player sees anyway, so
-    a model that can't produce one falls back to a stock line instead of
-    failing the whole turn.
-    """
     state_text = "Current true state: " + game["state"].summary()
     try:
         data = ask_json(
@@ -376,7 +370,10 @@ def choose(game: dict, index: int, scavenge_tonight: bool = False) -> dict:
             )
         else:
             night_events = scavenge(state)
-            night = {"story": scavenge_story(game, night_events), "events": night_events}
+            # night_events[0] is always the bullet-cost line; handed to the
+            # story prompt it reads as loot ("the party found 2 bullets"),
+            # so the model only narrates the rolled outcomes.
+            night = {"story": scavenge_story(game, night_events[1:]), "events": night_events}
             game["history"] += (
                 f"Night after day {state.day - 1}: the party went scavenging instead "
                 f"of resting. " + " ".join(night_events) + f" {night['story']}\n"

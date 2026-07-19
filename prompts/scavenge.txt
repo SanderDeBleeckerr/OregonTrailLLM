@@ -3,6 +3,6 @@ Instead of resting, the party spent the night scavenging around camp for anythin
 The dice have ALREADY decided what the night yielded -- it is listed below as fixed facts.
 Your only job is to tell the story of how the night produced exactly those results.
 Mention every listed outcome and invent no others. Do not soften, undo, or add consequences.
-Keep the tone grounded and historical.
+Tell it in an Old-West cowboy voice: a plain-spoken frontier drawl ("reckon", "ain't", "mighty", "yonder"), grounded and historical, never cartoonish.
 Respond ONLY with a JSON object (no markdown fences, no prose outside JSON):
 {"story": "2-4 sentences telling the story of the night's scavenge"}
