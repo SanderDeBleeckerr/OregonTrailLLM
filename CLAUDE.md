@@ -85,13 +85,13 @@ Additional logged metric: **thinking leakage rate** — how often `<think>` bloc
 
 ## Game rules (enforced by the harness, optionally told to the LLM)
 
-1. Miles per turn: 0–25.
+1. Miles per turn: 0–25. If the effects omit `miles` entirely, the harness advances a default 10 — the wagon always moves unless the model explicitly says otherwise.
 2. Hunting requires ≥10 bullets and must include `bullets: -10` (or more negative); food gained from one hunt ≤100 lbs.
 3. No effect may push food, oxen, bullets, or money below 0.
 4. Only existing party member names are valid in `party_health`.
 5. A single event never heals anyone by more than 40 HP.
-6. Daily food consumption: 5 lbs × alive party members (applied by harness after effects). **This rule is stated in `prompts.BASE`** — it must be. While it was harness-only the model double-charged meals, and blind-mode food drift grew ~20/day no matter how good its recall was, measuring a hidden rule instead of context fidelity.
-7. Trail length: 2000 miles. Game ends on arrival, party death, or starvation with no resources.
+6. Daily food consumption: 5 lbs × alive party members, charged by the harness **only when the effects omit `food`**. An explicit `food` delta is the day's entire food change, meals included — otherwise the model's constant small food rewards silently cancel the meals and food never visibly drops. **This rule is stated in `prompts.BASE`** — it must be. While it was harness-only the model double-charged meals, and blind-mode food drift grew ~20/day no matter how good its recall was, measuring a hidden rule instead of context fidelity.
+7. Trail length: 200 miles. Game ends on arrival, party death, or starvation with no resources.
 8. Per-member `sick` / `tired`: LLM-proposed **absolute booleans**, not deltas. `sick` may never be cleared for anyone at ≤30 HP; a dead member (0 HP) carries no flags.
 9. Group `sentiment`: one of `despairing|grim|uneasy|okay|hopeful|elated`, default `okay`. Only membership in that scale is enforced. How far the mood may move in a day is deliberately **un**constrained — a cap was tried and only ever fired on days the model had good reason to swing, so it manufactured violations rather than catching them.
 

@@ -142,6 +142,33 @@
   }
   .opt .fx { font-size: 11px; color: var(--ink-soft); margin-top: 4px; }
 
+  /* ---- consequences (post-choice, pre-advance) */
+  .consequence { text-align: center; padding: 8px 0 4px; }
+  .cq-chosen {
+    font-size: 12px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--ink-soft); margin-bottom: 4px;
+  }
+  .cq-chosen b {
+    display: block; font-size: 19px; letter-spacing: normal; text-transform: none;
+    color: var(--ink); margin-top: 6px; font-family: ui-serif, Georgia, serif;
+  }
+  .cq-badges {
+    display: flex; flex-wrap: wrap; gap: 10px; justify-content: center;
+    margin: 22px 0 26px;
+  }
+  .cq-badge {
+    font-size: 16px; font-weight: 700; letter-spacing: .01em;
+    padding: 12px 18px; border-radius: 10px; border: 1px solid currentColor;
+    background: var(--panel-2); box-shadow: var(--shadow);
+  }
+  .cq-badge.pos { color: var(--well); }
+  .cq-badge.neg { color: var(--accent); }
+  .cq-badge.status { color: var(--tired); }
+  .cq-badge.empty {
+    color: var(--ink-soft); border-style: dashed; font-weight: 400; font-size: 13px;
+  }
+  #continue-btn { max-width: 260px; display: block; margin: 0 auto; }
+
   /* ---- journal + notes */
   .note {
     border-left: 3px solid var(--accent); background: var(--panel-2);
@@ -217,8 +244,9 @@
     <div class="field check">
       <label for="scorer"><input type="checkbox" id="scorer" checked>
         Price the options with a separate scorer call</label>
-      <div class="hint">Two calls per turn: one writes the day, one assigns the
-        numbers under stricter rules. Slower, but the effects follow the fiction.</div>
+      <div class="hint">The day and its three options are written first, with no
+        numbers attached. Only once you pick one is it priced, under stricter
+        rules -- the other two are never scored at all.</div>
     </div>
     <div class="field"><button class="go" id="begin">Set out west</button></div>
     <div class="err" id="setup-err" hidden></div>
@@ -252,6 +280,11 @@
         <div id="turn">
           <p class="narrative" id="narrative"></p>
           <div id="options"></div>
+          <div class="consequence" id="consequence" hidden>
+            <div class="cq-chosen" id="cq-chosen">You chose</div>
+            <div class="cq-badges mono" id="cq-badges"></div>
+            <button class="go" id="continue-btn">Continue west →</button>
+          </div>
         </div>
         <div class="end" id="end" hidden>
           <div class="verdict" id="verdict"></div>
@@ -286,10 +319,13 @@ let gameId = null;
 let options = [];
 let busy = false;
 let lastTurn = null;
+let lastState = null;
+let awaitingContinue = false;
 let devMode = localStorage.getItem("wt-devmode") === "1";
 
 // ---------------------------------------------------------------- rendering
 function renderState(s) {
+  lastState = s;
   $("statusline").textContent =
     `Day ${s.day} | ${s.miles} mi | food ${s.food} | oxen ${s.oxen} `
     + `| bullets ${s.bullets} | $${s.money}`;
@@ -333,10 +369,17 @@ function renderState(s) {
 
 function renderTurn(turn) {
   lastTurn = turn;
+  document.querySelectorAll(".note.referee").forEach((n) => n.remove());
+  $("turn").hidden = false;
+  $("end").hidden = true;
+  $("consequence").hidden = true;
+  $("options").hidden = false;
   $("narrative").textContent = turn.narrative;
   options = turn.options;
   $("options").innerHTML = options.map((o, i) => {
-    const fx = devMode ? describeEffects(o.effects) : "";
+    // o.effects is null in scorer mode: nothing has been priced yet, by design
+    // (see serve.py start_turn) -- devMode has nothing to preview until then.
+    const fx = devMode ? describeEffects(o.effects || {}) : "";
     return `<button class="opt" data-i="${i}">
       <kbd>${i + 1}</kbd>
       <span>${esc(o.text)}${fx ? `<div class="fx mono">${esc(fx)}</div>` : ""}</span>
@@ -344,6 +387,28 @@ function renderTurn(turn) {
   }).join("");
   document.querySelectorAll(".opt").forEach((b) =>
     b.addEventListener("click", () => pick(+b.dataset.i)));
+}
+
+function renderConsequence(d) {
+  $("options").hidden = true;
+  $("consequence").hidden = false;
+  document.querySelectorAll(".note.referee").forEach((n) => n.remove());
+  $("cq-chosen").innerHTML = `You chose<b>${esc(d.chosen)}</b>`;
+  const badges = effectBadges(d.effects || {});
+  $("cq-badges").innerHTML = badges.length
+    ? badges.map((b) => `<span class="cq-badge ${b.kind}">${esc(b.text)}</span>`).join("")
+    : `<span class="cq-badge empty">Nothing of numeric consequence</span>`;
+  if (d.violations?.length) showNote(d.violations);
+  awaitingContinue = true;
+}
+
+function renderEnd(state) {
+  $("turn").hidden = true;
+  $("end").hidden = false;
+  const [verdict, note] = VERDICTS[state.finished] || [state.finished, ""];
+  $("verdict").textContent = verdict;
+  $("end-note").textContent = `${note} You lasted ${state.day - 1} days and `
+    + `covered ${state.miles} miles.`;
 }
 
 // Dev mode shows the model's *proposed* effects before you choose -- useful for
@@ -365,6 +430,32 @@ function describeEffects(fx) {
     }
   }
   return parts.join(" · ");
+}
+
+// Same source data as describeEffects, but as one badge per consequence
+// (kind: pos/neg/status) instead of a single flattened line -- the
+// consequence screen is the one place effects should command attention.
+function effectBadges(fx) {
+  const badges = [];
+  for (const k of ["miles", "food", "oxen", "bullets", "money"]) {
+    const v = fx[k];
+    if (typeof v === "number" && v !== 0) {
+      badges.push({ text: `${v > 0 ? "+" : ""}${v} ${k}`, kind: v > 0 ? "pos" : "neg" });
+    }
+  }
+  for (const [n, hp] of Object.entries(fx.party_health || {})) {
+    if (typeof hp === "number" && hp !== 0) {
+      badges.push({ text: `${n} ${hp > 0 ? "+" : ""}${hp} hp`, kind: hp > 0 ? "pos" : "neg" });
+    }
+  }
+  for (const [n, st] of Object.entries(fx.party_status || {})) {
+    for (const f of ["sick", "tired"]) {
+      if (typeof st?.[f] === "boolean") {
+        badges.push({ text: `${n} ${st[f] ? "" : "not "}${f}`, kind: "status" });
+      }
+    }
+  }
+  return badges;
 }
 
 function renderLog(log) {
@@ -390,25 +481,6 @@ const VERDICTS = {
   stranded: ["Stranded", "No food, no oxen, no money. The trail ends here."],
 };
 
-function render(d) {
-  renderState(d.state);
-  renderLog(d.log);
-  // Notes are per-turn; drop the previous turn's before drawing this one.
-  document.querySelectorAll(".note.referee").forEach((n) => n.remove());
-  const done = d.state.finished;
-  $("turn").hidden = !!done;
-  $("end").hidden = !done;
-  if (done) {
-    const [verdict, note] = VERDICTS[done] || [done, ""];
-    $("verdict").textContent = verdict;
-    $("end-note").textContent = `${note} You lasted ${d.state.day - 1} days and `
-      + `covered ${d.state.miles} miles.`;
-  } else if (d.turn) {
-    renderTurn(d.turn);
-  }
-  if (d.violations?.length) showNote(d.violations);
-}
-
 function showNote(violations) {
   const el = document.createElement("div");
   el.className = "note referee";
@@ -424,6 +496,8 @@ const esc = (s) => String(s).replace(/[&<>"']/g,
 function setBusy(on, msg) {
   busy = on;
   document.querySelectorAll(".opt").forEach((b) => (b.disabled = on));
+  const continueBtn = $("continue-btn");
+  if (continueBtn) continueBtn.disabled = on;
   const existing = $("waiting");
   if (existing) existing.remove();
   if (on) {
@@ -441,16 +515,47 @@ const LOADING_LINES = [
   "Reading the sky for weather…", "Consulting the trail map…",
   "The party breaks camp…", "Fording the unknown…",
 ];
+const CONSEQUENCE_LINES = [
+  "The choice is made…", "Only time will tell…", "The dust begins to settle…",
+  "What's done is done…",
+];
+const pickRandom = (lines) => lines[Math.floor(Math.random() * lines.length)];
 
 async function pick(i) {
   if (busy) return;
-  setBusy(true, LOADING_LINES[Math.floor(Math.random() * LOADING_LINES.length)]);
+  setBusy(true, pickRandom(CONSEQUENCE_LINES));
   $("game-err").hidden = true;
   try {
-    render(await api("/api/choose", { game_id: gameId, index: i }));
+    const d = await api("/api/choose", { game_id: gameId, index: i });
+    renderState(d.state);
+    renderLog(d.log);
+    renderConsequence(d);
   } catch (e) {
     $("game-err").textContent = e.message;
     $("game-err").hidden = false;
+  } finally {
+    setBusy(false);
+  }
+}
+
+// Gated on awaitingContinue so the player must actively move past the
+// consequences of their last choice before the next day is even requested.
+async function continueTurn() {
+  if (busy || !awaitingContinue) return;
+  awaitingContinue = false;
+  if (lastState?.finished) {
+    renderEnd(lastState);
+    return;
+  }
+  setBusy(true, pickRandom(LOADING_LINES));
+  $("game-err").hidden = true;
+  try {
+    const d = await api("/api/advance", { game_id: gameId });
+    renderTurn(d.turn);
+  } catch (e) {
+    $("game-err").textContent = e.message;
+    $("game-err").hidden = false;
+    awaitingContinue = true;
   } finally {
     setBusy(false);
   }
@@ -470,7 +575,9 @@ async function begin() {
     gameId = d.game_id;
     $("setup").hidden = true;
     $("game").hidden = false;
-    render(d);
+    renderState(d.state);
+    renderLog(d.log);
+    renderTurn(d.turn);
   } catch (e) {
     $("setup-err").textContent = e.message;
     $("setup-err").hidden = false;
@@ -481,10 +588,13 @@ async function begin() {
 }
 
 document.addEventListener("keydown", (e) => {
-  if ($("game").hidden || busy || $("turn").hidden) return;
+  if ($("game").hidden || busy) return;
+  if (awaitingContinue) { continueTurn(); return; }
+  if ($("turn").hidden || $("options").hidden) return;
   const i = parseInt(e.key, 10) - 1;
   if (i >= 0 && i < options.length) pick(i);
 });
+document.addEventListener("click", () => { if (awaitingContinue) continueTurn(); });
 $("begin").addEventListener("click", begin);
 $("again").addEventListener("click", () => location.reload());
 $("devmode").checked = devMode;

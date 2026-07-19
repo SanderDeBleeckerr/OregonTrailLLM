@@ -2,7 +2,7 @@ Example of a valid response:
 {
   "believed_state": {"day": 4, "miles": 62, "food": 340, "oxen": 4,
                      "bullets": 60, "money": 150,
-                     "party_health": {"Marta": 100, "Jonas": 95, "Elsie": 100, "Ruben": 100}},
+                     "party_health": {"Marta": 85, "Jonas": 82, "Elsie": 60, "Ruben": 80}},
   "narrative": "A rainstorm has swollen the creek ahead. The oxen balk at the muddy bank while Jonas studies the current.",
   "options": [
     {"text": "Ford the creek now", "effects": {"miles": 10, "party_health": {"Jonas": -10},

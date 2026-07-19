@@ -41,3 +41,9 @@ Moving to something playfully funny like you're in past times trying to move you
 # Stage 8
 
 Cleaned up project moved prompts to txt files so they re easier to read and manipulate
+
+# Stage 9
+
+Fixed turn taking slightly so effects are only shown / calculated after a decision is taken and the user gets to see the repercussions after his decision via an afterscreen.
+
+# Stage 10 

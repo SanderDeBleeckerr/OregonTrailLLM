@@ -15,11 +15,11 @@ EXAMPLE = _load("example.txt")
 # Sole source for QUIZ facts; wording must stay stable across runs.
 INTRO = _load("intro.txt") + "\n"
 NARRATE_SCHEMA = _load("narrate_schema.txt")
+# Scorer task description + JSON schema, always used together, never apart.
 SCORER_BASE = _load("scorer_base.txt")
-SCORER_SCHEMA = _load("scorer_schema.txt")
-# These are the coherence constraints a single narrate+score call kept breaking.
+# Coherence constraints (a single narrate+score call kept breaking these) + a
+# worked example, always used together, never apart.
 COHERENCE = _load("coherence.txt")
-SCORER_EXAMPLE = _load("scorer_example.txt")
 
 _EFFECT_RULES = [
     'miles per option must be between 0 and 25.',
@@ -80,8 +80,8 @@ def narrate_prompt(state_text: str, history: str, extra: str = "") -> str:
 def effects_prompt(state_text: str, narrative: str, option_texts: list[str]) -> str:
     actions = "\n".join(f"{i}. {t}" for i, t in enumerate(option_texts, 1))
     return (
-        f"{SCORER_BASE}\n\n{SCORER_SCHEMA}\n\n{SCORER_RULES}\n\n{COHERENCE}\n\n"
-        f"{SCORER_EXAMPLE}\n\n{state_text}\n\nToday's event: {narrative}\n\n"
+        f"{SCORER_BASE}\n\n{SCORER_RULES}\n\n{COHERENCE}\n\n"
+        f"{state_text}\n\nToday's event: {narrative}\n\n"
         f"Actions:\n{actions}\n\n"
         f"Give exactly {len(option_texts)} effect objects, one per action, in order."
     )

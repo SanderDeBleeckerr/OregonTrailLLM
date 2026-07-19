@@ -5,8 +5,10 @@ import json
 import re
 from dataclasses import dataclass, field, asdict
 
-TRAIL_MILES = 2000
+TRAIL_MILES = 200
 MAX_MILES_PER_DAY = 25
+DEFAULT_MILES_PER_DAY = 10
+DAILY_FOOD_PER_MEMBER = 5
 HUNT_BULLET_COST = 10
 MAX_FOOD_PER_HUNT = 100
 
@@ -15,13 +17,13 @@ DEFAULT_SENTIMENT = "okay"
 SICK_RECOVERY_FLOOR = 30
 
 DEFAULT_PARTY = [
-    {"name": "Marta", "age": 34, "health": 100, "sick": False, "tired": False,
+    {"name": "Marta", "age": 34, "health": 85, "sick": False, "tired": False,
      "note": "the party's healer"},
-    {"name": "Jonas", "age": 41, "health": 100, "sick": False, "tired": False,
+    {"name": "Jonas", "age": 41, "health": 90, "sick": False, "tired": False,
      "note": "a former blacksmith"},
-    {"name": "Elsie", "age": 9, "health": 100, "sick": False, "tired": False,
+    {"name": "Elsie", "age": 9, "health": 65, "sick": False, "tired": False,
      "note": "youngest, has a weak ankle"},
-    {"name": "Ruben", "age": 17, "health": 100, "sick": False, "tired": False,
+    {"name": "Ruben", "age": 17, "health": 80, "sick": False, "tired": False,
      "note": "best shot in the family"},
 ]
 
@@ -160,8 +162,9 @@ def apply_effects(state: GameState, effects: dict) -> GameState:
     def num(x):
         return int(x) if isinstance(x, (int, float)) else 0
 
-    state.miles = min(TRAIL_MILES, state.miles + max(0, min(num(effects.get("miles")), MAX_MILES_PER_DAY)))
-    state.food = max(0, state.food + num(effects.get("food")))
+    miles = effects.get("miles")
+    miles_delta = num(miles) if isinstance(miles, (int, float)) else DEFAULT_MILES_PER_DAY
+    state.miles = min(TRAIL_MILES, state.miles + max(0, min(miles_delta, MAX_MILES_PER_DAY)))
     state.oxen = max(0, state.oxen + num(effects.get("oxen")))
     state.bullets = max(0, state.bullets + num(effects.get("bullets")))
     state.money = max(0, state.money + num(effects.get("money")))
@@ -186,7 +189,11 @@ def apply_effects(state: GameState, effects: dict) -> GameState:
     sentiment = effects.get("sentiment")
     if isinstance(sentiment, str) and sentiment.lower() in SENTIMENTS:
         state.sentiment = sentiment.lower()
-    state.food = max(0, state.food - 5 * len(state.alive()))
+    # An explicit food delta is the day's whole food change, meals included;
+    # the default meal charge applies only when the model omits food entirely.
+    food = effects.get("food")
+    food_delta = num(food) if isinstance(food, (int, float)) else -DAILY_FOOD_PER_MEMBER * len(state.alive())
+    state.food = max(0, state.food + food_delta)
     state.day += 1
     return state
 

@@ -9,6 +9,14 @@ source of truth: the browser only ever renders state the engine has already
 validated and clamped, and the referee's clamps are surfaced in the UI rather
 than hidden, since those violations are the point of the experiment.
 
+Each turn is three round trips, not one: /api/new or /api/advance narrates the
+day and its three options with no numbers attached; /api/choose prices and
+applies only the one option the player actually picked, then stops without
+narrating the next day; /api/advance (again) picks the story back up once the
+player has seen the consequences. Nothing is priced for options that were
+never chosen, and nothing about the outcome reaches the browser before the
+player commits to a choice.
+
 Deliberately stdlib-only (no Flask), to keep setup at `python serve.py`.
 """
 from __future__ import annotations
@@ -77,37 +85,51 @@ def _has_options(d: dict) -> bool:
     return isinstance(d.get("options"), list) and bool(_texts(d))
 
 
-def generate_turn(game: dict) -> dict:
+def start_turn(game: dict) -> dict:
+    """Narrative + option texts for the day. Nothing here is priced yet.
+
+    In single-call mode the model has no choice but to return effects for all
+    three options in this same call -- there is no way to defer arithmetic
+    without a second round trip, which is exactly what single-call mode is
+    trading away. Those effects are carried on the option so a picked one can
+    be applied without another call, but they are never sent to the browser
+    until the player has actually chosen (see the /api/new and /api/advance
+    handlers), so nothing about the *player experience* depends on which mode
+    is running.
+    """
     state: GameState = game["state"]
     state_text = "Current true state: " + state.summary()
     history = game["history"][-4000:]
 
     if not game["scorer"]:
         data = ask_json(game, game["build"](state_text, history), 0.8, _has_options)
-        return {
-            "narrative": str(data.get("narrative", "")),
-            "options": [{"text": str(o.get("text", "?")), "effects": o.get("effects") or {}}
-                        for o in data["options"][:3] if isinstance(o, dict)],
-        }
+        options = [{"text": str(o.get("text", "?")), "effects": o.get("effects") or {}}
+                   for o in data["options"][:3] if isinstance(o, dict)]
+    else:
+        data = ask_json(game, narrate_prompt(state_text, history), 0.8, _has_options)
+        options = [{"text": t, "effects": None} for t in _texts(data)]
+    return {"narrative": str(data.get("narrative", "")), "options": options}
 
-    story = ask_json(game, narrate_prompt(state_text, history), 0.8, _has_options)
-    narrative = str(story.get("narrative", ""))
-    texts = _texts(story)
 
-    # Scorer does only arithmetic; near-greedy decoding so creativity shows up as rule violations, not prose.
+def score_choice(game: dict, turn: dict, option: dict) -> dict:
+    """Price exactly the one action the player took.
+
+    Single-call mode already knows this option's effects from start_turn. In
+    scorer mode, this is the only scoring call the whole turn makes -- the two
+    options not picked are never priced at all.
+    """
+    if option["effects"] is not None:
+        return option["effects"]
+    state: GameState = game["state"]
+    state_text = "Current true state: " + state.summary()
     priced = ask_json(
         game,
-        effects_prompt(state_text, narrative, texts),
-        0.1,
+        effects_prompt(state_text, turn["narrative"], [option["text"]]),
+        0.1,  # near-greedy: creativity here shows up as rule violations, not prose.
         lambda d: isinstance(d.get("effects"), list) and bool(d["effects"]),
     )
-    effects = [e if isinstance(e, dict) else {} for e in priced["effects"]]
-    # A short scorer reply costs the tail options their effects, not the turn.
-    effects += [{}] * (len(texts) - len(effects))
-    return {
-        "narrative": narrative,
-        "options": [{"text": t, "effects": fx} for t, fx in zip(texts, effects)],
-    }
+    effects = priced["effects"][0] if priced["effects"] else None
+    return effects if isinstance(effects, dict) else {}
 
 
 def new_game(model: str, strategy: str, host: str, scorer: bool) -> dict:
@@ -130,32 +152,42 @@ def new_game(model: str, strategy: str, host: str, scorer: bool) -> dict:
 
 
 def choose(game: dict, index: int) -> dict:
-    state: GameState = game["state"]
-    options = game.get("turn", {}).get("options") or []
+    """Price and apply exactly the player's pick.
+
+    This does NOT generate the following day -- that only happens once the
+    player has seen the consequences of this choice and asks to continue
+    (see advance()). game["turn"] is cleared here so a stale index can't be
+    replayed against a turn that no longer exists.
+    """
+    turn = game.get("turn")
+    options = (turn or {}).get("options") or []
     if not 0 <= index < len(options):
         raise ValueError("no such option")
 
     choice = options[index]
-    effects = choice.get("effects") or {}
-    violations = check_rules(state, choice.get("text", ""), effects)
+    effects = score_choice(game, turn, choice)
+    state: GameState = game["state"]
+    violations = check_rules(state, choice["text"], effects)
     game["state"] = state = apply_effects(state, effects)
     game["history"] += (
-        f"Day {state.day - 1}: {game['turn'].get('narrative', '')} "
-        f"Chosen: {choice.get('text', '')} Effects: {json.dumps(effects)}\n"
+        f"Day {state.day - 1}: {turn['narrative']} "
+        f"Chosen: {choice['text']} Effects: {json.dumps(effects)}\n"
     )
     game["log"].append({
         "day": state.day - 1,
-        "narrative": game["turn"].get("narrative", ""),
-        "chosen": choice.get("text", ""),
+        "narrative": turn["narrative"],
+        "chosen": choice["text"],
         "effects": effects,
         "violations": violations,
     })
+    game["turn"] = None
+    return {"chosen": choice["text"], "effects": effects, "violations": violations}
 
-    if state.finished():
-        game["turn"] = None
-    else:
-        game["turn"] = generate_turn(game)
-    return {"violations": violations}
+
+def advance(game: dict) -> dict:
+    """Generate the next day's turn, once the player is ready to move on."""
+    game["turn"] = start_turn(game)
+    return {"turn": game["turn"]}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -219,7 +251,7 @@ class Handler(BaseHTTPRequestHandler):
                     self.server.default_scorer if scorer is None else bool(scorer),
                 )
                 with game["lock"]:
-                    game["turn"] = generate_turn(game)
+                    game["turn"] = start_turn(game)
                     self._json(200, {"game_id": game["id"], "state": view(game["state"]),
                                      "turn": game["turn"], "log": game["log"]})
                 return
@@ -228,8 +260,17 @@ class Handler(BaseHTTPRequestHandler):
                 game = self._game(payload)
                 with game["lock"]:
                     result = choose(game, int(payload.get("index", -1)))
-                    self._json(200, {"state": view(game["state"]), "turn": game["turn"],
-                                     "log": game["log"], **result})
+                    self._json(200, {"state": view(game["state"]), "log": game["log"], **result})
+                return
+
+            if self.path == "/api/advance":
+                game = self._game(payload)
+                with game["lock"]:
+                    if game["state"].finished():
+                        self._json(400, {"error": "the game has already ended"})
+                        return
+                    result = advance(game)
+                    self._json(200, {"turn": result["turn"]})
                 return
         except KeyError as e:
             self._json(404, {"error": str(e)})
