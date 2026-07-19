@@ -17,14 +17,27 @@ player has seen the consequences. Nothing is priced for options that were
 never chosen, and nothing about the outcome reaches the browser before the
 player commits to a choice.
 
+Scene images run through image_server.py (diffusers + CUDA), a separate
+process since it needs its own model resident in VRAM. `python serve.py`
+alone is still enough to start both: this launches image_server.py as a
+child process automatically unless something is already answering on
+--image-host, and stops it on exit. Pass --no-image to skip it entirely.
+
 Deliberately stdlib-only (no Flask), to keep setup at `python serve.py`.
 """
 from __future__ import annotations
 
 import argparse
+import base64
 import json
+import mimetypes
 import pathlib
+import subprocess
+import sys
 import threading
+import urllib.error
+import urllib.parse
+import urllib.request
 import uuid
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -38,13 +51,47 @@ from engine import (
     extract_json,
     state_dict,
 )
-from llm_client import DEFAULT_MODEL, OllamaClient
-from prompts import INTRO, STRATEGIES, effects_prompt, narrate_prompt
+from llm_client import DEFAULT_MODEL, OllamaClient, SceneImageClient
+from prompts import INTRO, STRATEGIES, effects_prompt, image_prompt, narrate_prompt
 
 ROOT = pathlib.Path(__file__).parent
 WEB = ROOT / "web"
 
 MAX_PARSE_MISSES = 3
+# Scene images go to image_server.py (diffusers + CUDA), not Ollama -- Ollama's
+# image models route through MLX, which doesn't exist on Windows.
+IMAGE_HOST = "http://localhost:8090"
+
+
+def _image_server_alive(host: str) -> bool:
+    try:
+        with urllib.request.urlopen(f"{host}/health", timeout=1.5) as resp:
+            return resp.status == 200
+    except (urllib.error.URLError, OSError):
+        return False
+
+
+def _launch_image_server(host: str) -> subprocess.Popen | None:
+    """Start image_server.py as a child process so `python serve.py` alone is
+    enough -- nobody wants to open a second terminal for this.
+
+    Only spawns if nothing is already answering on that host: lets someone
+    run image_server.py separately (e.g. to iterate on it without reloading
+    the LLM client) without ending up with two processes fighting over the
+    same GPU. Doesn't block on the model finishing loading -- the game's
+    existing pending/placeholder flow already tolerates that.
+    """
+    if _image_server_alive(host):
+        print(f"  scene image : {host} (already running)")
+        return None
+    port = urllib.parse.urlparse(host).port or 8090
+    proc = subprocess.Popen(
+        [sys.executable, str(ROOT / "image_server.py"), "--port", str(port)],
+        cwd=ROOT,
+    )
+    print(f"  scene image : {host} (starting in the background, pid {proc.pid}; "
+          f"first run downloads the model, can take a few minutes)")
+    return proc
 
 GAMES: dict[str, dict] = {}
 GAMES_LOCK = threading.Lock()
@@ -85,6 +132,36 @@ def _has_options(d: dict) -> bool:
     return isinstance(d.get("options"), list) and bool(_texts(d))
 
 
+def _generate_scene_image(game: dict, day: int, narrative: str) -> None:
+    """Kick off a background image for today's scene; never blocks the turn.
+
+    The GPU is otherwise idle while the player reads and picks an option, so
+    this runs concurrently with that instead of adding latency to start_turn.
+    Deliberately doesn't take game["lock"] -- start_turn runs inside it, and
+    that lock isn't reentrant. Only the "image" key is touched here, nothing
+    else reads or writes it, so plain dict-item assignment (atomic under the
+    GIL) is enough; a day token guards against a stale image from a previous
+    turn landing after the player has already moved on.
+    """
+    client = game.get("image_client")
+    if client is None:
+        return
+    game["image"] = {"day": day, "status": "pending", "data_uri": None}
+
+    def work() -> None:
+        try:
+            prompt = image_prompt(narrative, game["state"].sentiment)
+            png = client.generate_image(prompt)
+            uri = "data:image/png;base64," + base64.b64encode(png).decode()
+            result = {"day": day, "status": "ready", "data_uri": uri}
+        except Exception as e:  # noqa: BLE001 - the scene image is a bonus, never fatal
+            result = {"day": day, "status": "error", "data_uri": None, "error": str(e)}
+        if game["image"]["day"] == day:
+            game["image"] = result
+
+    threading.Thread(target=work, daemon=True).start()
+
+
 def start_turn(game: dict) -> dict:
     """Narrative + option texts for the day. Nothing here is priced yet.
 
@@ -108,7 +185,9 @@ def start_turn(game: dict) -> dict:
     else:
         data = ask_json(game, narrate_prompt(state_text, history), 0.8, _has_options)
         options = [{"text": t, "effects": None} for t in _texts(data)]
-    return {"narrative": str(data.get("narrative", "")), "options": options}
+    narrative = str(data.get("narrative", ""))
+    _generate_scene_image(game, state.day, narrative)
+    return {"narrative": narrative, "options": options}
 
 
 def score_choice(game: dict, turn: dict, option: dict) -> dict:
@@ -132,10 +211,12 @@ def score_choice(game: dict, turn: dict, option: dict) -> dict:
     return effects if isinstance(effects, dict) else {}
 
 
-def new_game(model: str, strategy: str, host: str, scorer: bool) -> dict:
+def new_game(model: str, strategy: str, host: str, scorer: bool, image_host: str | None) -> dict:
     game = {
         "state": GameState(),
         "client": OllamaClient(model=model, host=host),
+        "image_client": SceneImageClient(host=image_host) if image_host else None,
+        "image": None,
         "build": STRATEGIES[strategy],
         "history": INTRO,
         "model": model,
@@ -231,6 +312,13 @@ class Handler(BaseHTTPRequestHandler):
                 "default_scorer": self.server.default_scorer,
             })
             return
+        # Any other file under web/ (e.g. a player-supplied placeholder.png)
+        # is served as-is; the traversal guard keeps requests inside WEB.
+        candidate = (WEB / path.lstrip("/")).resolve()
+        if WEB in candidate.parents and candidate.is_file():
+            ctype = mimetypes.guess_type(str(candidate))[0] or "application/octet-stream"
+            self._send(200, candidate.read_bytes(), ctype)
+            return
         self._send(404, b"not found", "text/plain")
 
     def do_POST(self) -> None:
@@ -249,6 +337,7 @@ class Handler(BaseHTTPRequestHandler):
                     payload.get("strategy") or self.server.default_strategy,
                     self.server.ollama_host,
                     self.server.default_scorer if scorer is None else bool(scorer),
+                    self.server.image_host,
                 )
                 with game["lock"]:
                     game["turn"] = start_turn(game)
@@ -271,6 +360,15 @@ class Handler(BaseHTTPRequestHandler):
                         return
                     result = advance(game)
                     self._json(200, {"turn": result["turn"]})
+                return
+
+            if self.path == "/api/image":
+                game = self._game(payload)
+                image = game.get("image")
+                if image is None:
+                    self._json(200, {"status": "disabled"})
+                else:
+                    self._json(200, image)
                 return
         except KeyError as e:
             self._json(404, {"error": str(e)})
@@ -298,6 +396,11 @@ def main() -> None:
                          "instead of handing the numbers to a scorer call "
                          "(faster per turn, noticeably worse effects)")
     ap.add_argument("--no-browser", action="store_true")
+    ap.add_argument("--image-host", default=IMAGE_HOST,
+                    help="image_server.py address; called while the player "
+                         "reads each day's options, when the GPU is idle anyway")
+    ap.add_argument("--no-image", action="store_true",
+                    help="skip scene image generation entirely")
     args = ap.parse_args()
 
     server = ThreadingHTTPServer((args.bind, args.port), Handler)
@@ -305,12 +408,16 @@ def main() -> None:
     server.default_strategy = args.strategy
     server.default_scorer = not args.single_call
     server.ollama_host = args.host
+    server.image_host = None if args.no_image else args.image_host
 
     url = f"http://localhost:{args.port}"
     print(f"Westward Trail is running at {url}")
     print(f"  game master : {args.model} via {args.host}")
     print(f"  strategy    : {args.strategy}")
     print(f"  effects     : {'narrator + scorer' if server.default_scorer else 'inline (single call)'}")
+    image_process = _launch_image_server(server.image_host) if server.image_host else None
+    if not server.image_host:
+        print("  scene image : disabled")
     print("Press Ctrl+C to stop.")
     if not args.no_browser:
         threading.Timer(0.5, webbrowser.open, args=(url,)).start()
@@ -318,6 +425,9 @@ def main() -> None:
         server.serve_forever()
     except KeyboardInterrupt:
         print("\nStopped.")
+    finally:
+        if image_process is not None:
+            image_process.terminate()
 
 
 if __name__ == "__main__":

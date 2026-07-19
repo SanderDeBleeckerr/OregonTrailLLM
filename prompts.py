@@ -87,6 +87,15 @@ def effects_prompt(state_text: str, narrative: str, option_texts: list[str]) -> 
     )
 
 
+def image_prompt(narrative: str, sentiment: str) -> str:
+    return (
+        "Pixel art, 16-bit retro video-game style, wide scenic illustration, "
+        "muted historical color palette, no text, no logos, no UI elements. "
+        f"A wagon-train party traveling west on a frontier trail, mood {sentiment}. "
+        f"Scene: {narrative}"
+    )
+
+
 QUIZ = [
     {"q": "Which party member is the youngest? Answer with just the name.",
      "answer": "elsie"},

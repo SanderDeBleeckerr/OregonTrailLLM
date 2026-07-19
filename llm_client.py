@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 import time
 import urllib.error
@@ -99,3 +100,32 @@ class OllamaClient:
             )
             time.sleep(2**attempt)
         raise RuntimeError(f"Ollama request failed after {retries} retries: {last_err}")
+
+
+class SceneImageClient:
+    """Talks to image_server.py, not Ollama.
+
+    Ollama's image models (x/z-image-turbo) route through Apple's MLX runtime
+    and fail instantly on Windows with zero GPU activity. This hits a plain
+    diffusers + CUDA process instead, which has real Windows wheels.
+    """
+
+    def __init__(self, host: str = "http://localhost:8090"):
+        self.host = host
+
+    def generate_image(self, prompt: str, timeout: int = 60) -> bytes:
+        req = urllib.request.Request(
+            f"{self.host}/generate",
+            data=json.dumps({"prompt": prompt}).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                data = json.loads(resp.read().decode())
+        except urllib.error.HTTPError as e:
+            detail = e.read().decode(errors="replace")
+            raise RuntimeError(f"image_server HTTP {e.code}: {detail[:300]}") from e
+        image = data.get("image")
+        if not image:
+            raise RuntimeError(f"image_server returned no image: {data}")
+        return base64.b64decode(image)

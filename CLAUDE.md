@@ -50,7 +50,7 @@ Vocabulary: the **scorer** is an LLM and only *proposes*. The **referee** is
 
 ## Hard constraints
 
-- **Ollama only.** All LLM calls go to `localhost:11434` via `/api/generate`. No cloud APIs, no API keys. This is why the web UI is served locally: a remotely hosted page could not reach the model.
+- **Local inference only.** No cloud APIs, no API keys. This is why the web UI is served locally: a remotely hosted page could not reach the model.
 - **Non-thinking models only.** Never auto-select deepseek-r1, qwen3, gpt-oss, qwq, magistral, or anything that emits `<think>` blocks. The model catalog (`models.json`) is the single source of truth for allowed models. Always strip `<think>`/`<thinking>` blocks defensively anyway.
 - **num_ctx must be set explicitly.** Ollama defaults to 4096 tokens regardless of the model's native max. The game needs ≥8192 (16384 preferred). Always pass `options.num_ctx` in every API call. Never rely on the default.
 - **The harness is the referee.** The LLM proposes effects; the harness validates and clamps them. The game must never enter an illegal state regardless of what the model outputs. Log every violation but don't crash.

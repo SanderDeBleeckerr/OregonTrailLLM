@@ -124,6 +124,13 @@
   .tally b { color: var(--ink); font-variant-numeric: tabular-nums; }
 
   /* ---- narrative + options */
+  .scene-img {
+    display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover;
+    border-radius: 8px; border: 1px solid var(--rule); margin-bottom: 18px;
+    background: var(--panel-2); image-rendering: pixelated;
+  }
+  .scene-img:not(.ready) { animation: scene-pulse 1.8s ease-in-out infinite; }
+  @keyframes scene-pulse { 0%, 100% { opacity: .55; } 50% { opacity: .85; } }
   .narrative { font-size: 19px; line-height: 1.6; margin: 0 0 20px; }
   .opt {
     display: flex; gap: 12px; align-items: flex-start; width: 100%; text-align: left;
@@ -278,6 +285,7 @@
     <section>
       <div class="card">
         <div id="turn">
+          <img class="scene-img" id="scene-img" alt="">
           <p class="narrative" id="narrative"></p>
           <div id="options"></div>
           <div class="consequence" id="consequence" hidden>
@@ -322,6 +330,66 @@ let lastTurn = null;
 let lastState = null;
 let awaitingContinue = false;
 let devMode = localStorage.getItem("wt-devmode") === "1";
+let imageToken = 0;
+
+// The pixel-art scene image generates in the background (see serve.py's
+// _generate_scene_image) while the player is reading the day's options --
+// exactly when the GPU would otherwise sit idle. This just polls for it.
+const PLACEHOLDER_FALLBACK = "data:image/svg+xml;utf8," + encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180">'
+  + '<rect width="320" height="180" fill="#2e2820"/>'
+  + '<text x="50%" y="50%" fill="#a2947a" font-family="monospace" font-size="12" '
+  + 'text-anchor="middle" dominant-baseline="middle">the scene is being drawn…</text></svg>'
+);
+
+let placeholderChecked = false;
+let placeholderUrl = null;
+
+// Probed once via fetch (not img.src) so a missing web/placeholder.png never
+// shows up as a console "Failed to load resource" error -- only <img> loads
+// do that, a HEAD request just returns a status we can silently branch on.
+async function resolvePlaceholder() {
+  if (placeholderChecked) return placeholderUrl;
+  placeholderChecked = true;
+  try {
+    const r = await fetch("/placeholder.png", { method: "HEAD" });
+    placeholderUrl = r.ok ? "/placeholder.png" : null;
+  } catch (e) {
+    placeholderUrl = null;
+  }
+  return placeholderUrl;
+}
+
+function resetSceneImage() {
+  imageToken++;
+  const img = $("scene-img");
+  img.classList.remove("ready");
+  img.src = PLACEHOLDER_FALLBACK;
+  resolvePlaceholder().then((url) => {
+    if (url && !img.classList.contains("ready")) img.src = url;
+  });
+}
+
+async function pollSceneImage() {
+  const myToken = imageToken;
+  if (!gameId) return;
+  let d;
+  try {
+    d = await api("/api/image", { game_id: gameId });
+  } catch (e) {
+    return; // best-effort only -- a failed poll just leaves the placeholder up
+  }
+  if (myToken !== imageToken) return; // a newer turn has already started
+  if (d.status === "ready" && d.data_uri) {
+    const img = $("scene-img");
+    img.onerror = null;
+    img.src = d.data_uri;
+    img.classList.add("ready");
+  } else if (d.status === "pending") {
+    setTimeout(() => { if (myToken === imageToken) pollSceneImage(); }, 1500);
+  }
+  // "error" or "disabled" -> leave the placeholder, nothing more to poll for
+}
 
 // ---------------------------------------------------------------- rendering
 function renderState(s) {
@@ -375,6 +443,8 @@ function renderTurn(turn) {
   $("consequence").hidden = true;
   $("options").hidden = false;
   $("narrative").textContent = turn.narrative;
+  resetSceneImage();
+  pollSceneImage();
   options = turn.options;
   $("options").innerHTML = options.map((o, i) => {
     // o.effects is null in scorer mode: nothing has been priced yet, by design
