@@ -27,6 +27,8 @@ Considering adding sounds for ambience noise or when a choise creates suspsense.
 
 https://pixabay.com/music
 
+Ended up using: https://pixabay.com/music/traditional-country-wise-old-travelling-cowboy-guitar-drums-instrumental-308551/
+
 Notice the game is a bit dull because you go right away to the next day not really showing the consequence of your action. Also the consequence of your action is already visible on the choise which is great for debugging but bad for immersion.
 
 # Stage 6
@@ -47,6 +49,11 @@ Cleaned up project moved prompts to txt files so they re easier to read and mani
 Fixed turn taking slightly so effects are only shown / calculated after a decision is taken and the user gets to see the repercussions after his decision via an afterscreen.
 
 # Stage 10 
+
+The game is too easy, you can win by forcing the maximum of effort every turn.
+Programmed a risk of getting a serious diseases if you push too hard.
+
+# Stage 11
 
 Got Fable5 advice on prompts:
 
@@ -77,3 +84,15 @@ Smaller cleanups worth a sentence each
 - The narrator is told "write NO numbers" but nothing stops it writing "$15" in an option text (your own coherence example does exactly this!) — worth deciding whether narrator-priced options should be honored or forbidden, and logging how often it happens.
 
 If you only have time for three: fix the scorer schema bug, add budget injection, and add delta-annotated history. Those hit E1, E2, and E3 respectively with clean one-variable attribution, matching the design philosophy your strategies already follow.
+
+# Stage 12 
+
+Split up promp of adventures so sometimes you have the choice between travel fast, medium, stay. And sometimes you have the option to interact with another group. Both events are seperate prompts.
+
+# Stage 13 
+
+Made a post decision prompt to make up some story on how the results of the current day came to be.
+
+# Stage 14
+
+Found a bug in a prompt where the json became invalid

@@ -10,20 +10,53 @@ ground truth always lives in the harness, every turn yields measurable data on
 how well the model narrates *within constraints* — the scrutiny half of the
 assignment.
 
-## Setup
+## 60-second quickstart
 
 ```bash
-ollama pull hf.co/bartowski/Qwen2.5-14B-Instruct-GGUF:IQ4_XS   # the default
-# Avoid reasoning models (qwen3, deepseek-r1): they spend the token budget
-# on chain-of-thought and rarely reach the JSON the harness needs.
-pip install matplotlib
+# 1. Install Ollama (https://ollama.com) and make sure it is running.
+# 2. Pull the game master model (~6 GB download, wants ~9 GB VRAM):
+ollama pull gemma4:e4b
+# 3. Play — the game itself is pure stdlib, no pip installs:
+python serve.py --no-image
 ```
 
-The default game master is `qwen25-14b-iq4` from `configs/text-llm-options.json`
-— 14B-class quality at ~8 GB, 32K native context, "excellent" JSON reliability.
-It needs ~11 GB of VRAM. On a smaller card, pick a lower entry from that catalog
-and pass its **`pull_tag`** (not its `id`) to `--model`; `DEFAULT_MODEL` in
-`llm_client.py` is the single place to change it permanently.
+Opens http://localhost:8080. Python 3.10+ (tested on 3.13). The first turn is
+slow while Ollama loads the model — that's normal, not a hang. Drop
+`--no-image` once you've installed the scene-image extras below.
+
+## Setup
+
+Playing the game (`serve.py`, `play.py`) needs **no packages** — the engine,
+server, and Ollama client are pure stdlib. The extras below are optional.
+
+**Game master (required).** Install Ollama and `ollama pull gemma4:e4b`, the
+default in `llm_client.py` (`DEFAULT_MODEL` — the single place to change it
+permanently). On a different GPU, pick another entry from the catalog in
+`configs/text-llm-options.json` and pass its **`pull_tag`** (not its `id`) to
+`--model`. Avoid reasoning models (qwen3, deepseek-r1): they spend the token
+budget on chain-of-thought and rarely reach the JSON the harness needs. The
+code sets `num_ctx` on every call itself — no Ollama configuration needed.
+
+**Scene images (optional).** `serve.py` auto-starts `image_server.py`, which
+renders each day's scene with SD-Turbo through diffusers + CUDA (Ollama's own
+image models run on Apple's MLX runtime, which doesn't exist on Windows). The
+first run downloads the checkpoint (~2.5 GB) from Hugging Face automatically.
+It needs a CUDA build of torch, which does **not** come from PyPI — install
+torch first from PyTorch's index, then the rest:
+
+```bash
+pip install torch --index-url https://download.pytorch.org/whl/cu124
+pip install -r requirements.txt
+```
+
+The cu124 wheel covers NVIDIA GTX 900-series through RTX 40-series cards. An
+RTX 50-series (Blackwell) card needs the cu128 wheel (torch ≥ 2.7): swap
+`cu124` for `cu128` above. For AMD, Apple Silicon, or CPU-only setups, pick
+the matching install command at https://pytorch.org/get-started/locally/.
+Without these packages, run `serve.py --no-image`; the game is unaffected.
+
+**Analysis plots (optional).** `analyze.py` needs matplotlib, included in
+`requirements.txt`.
 
 ## Play it
 

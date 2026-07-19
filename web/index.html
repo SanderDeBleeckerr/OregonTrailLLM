@@ -6,34 +6,19 @@
 <title>Westward Trail</title>
 <style>
   :root {
-    --bg: #e9dcc0;
-    --panel: #f6efdd;
-    --panel-2: #efe5cb;
-    --ink: #2f2718;
-    --ink-soft: #6d6047;
-    --rule: #cbb994;
-    --accent: #8a3a1e;
-    --well: #4b6b3a;
-    --tired: #a9761b;
-    --sick: #9c3b2e;
-    --dead: #6b6b6b;
-    --shadow: 0 1px 0 rgba(0,0,0,.06), 0 6px 20px rgba(47,39,24,.08);
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #1b1710;
-      --panel: #26211a;
-      --panel-2: #2e2820;
-      --ink: #ece2cd;
-      --ink-soft: #a2947a;
-      --rule: #43392c;
-      --accent: #d97a4e;
-      --well: #8fb96f;
-      --tired: #dba43f;
-      --sick: #e0705d;
-      --dead: #7e7466;
-      --shadow: 0 6px 24px rgba(0,0,0,.35);
-    }
+    --bg: #2B281E;
+    --panel: #3a2d20;
+    --panel-2: #3a2d20;
+    --ink: #e6dcc6;
+    --ink-soft: #b3a080;
+    --rule: #5a4831;
+    --accent: #D99C4E;
+    --on-accent: #2e2315;
+    --well: #8fb173;
+    --tired: #c9a04a;
+    --sick: #c97a63;
+    --dead: #776b5c;
+    --shadow: 0 6px 24px rgba(0,0,0,.35);
   }
   * { box-sizing: border-box; }
   body {
@@ -56,12 +41,12 @@
   }
   .sub { color: var(--ink-soft); font-size: 13px; }
   .header-right { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-  .devmode {
-    display: flex; align-items: center; gap: 6px; font-size: 11px;
-    letter-spacing: .1em; text-transform: uppercase; color: var(--ink-soft);
-    cursor: pointer; user-select: none;
+  .music {
+    font: inherit; font-size: 11px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--ink-soft); background: none; border: 1px solid var(--rule);
+    border-radius: 999px; padding: 5px 12px; cursor: pointer; user-select: none;
   }
-  .devmode input { accent-color: var(--accent); cursor: pointer; }
+  .music:hover { color: var(--ink); border-color: var(--accent); }
 
   main { max-width: 1180px; margin: 0 auto; padding: 24px; }
   .cols { display: grid; grid-template-columns: 340px 1fr; gap: 24px; align-items: start; }
@@ -99,6 +84,10 @@
   .res b { display: block; font-size: 19px; font-variant-numeric: tabular-nums; }
   .res span { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-soft); }
 
+  #scavenge-btn { margin-top: 14px; }
+  #scavenge-btn.armed { background: var(--well); border-color: var(--well); }
+  #scavenge-btn:disabled { opacity: .5; cursor: default; filter: none; }
+
   /* ---- party */
   .person { padding: 11px 0; border-top: 1px solid var(--rule); }
   .person:first-of-type { border-top: 0; }
@@ -134,20 +123,29 @@
   .narrative { font-size: 19px; line-height: 1.6; margin: 0 0 20px; }
   .opt {
     display: flex; gap: 12px; align-items: flex-start; width: 100%; text-align: left;
-    background: var(--panel-2); color: inherit; font: inherit;
-    border: 1px solid var(--rule); border-radius: 8px; padding: 13px 15px;
-    cursor: pointer; transition: border-color .12s, transform .12s;
+    background: rgba(255,255,255,.07); color: inherit; font: inherit;
+    border: 1px solid rgba(255,255,255,.16); border-radius: 14px; padding: 13px 15px;
+    backdrop-filter: blur(10px) saturate(1.15);
+    -webkit-backdrop-filter: blur(10px) saturate(1.15);
+    box-shadow: 0 4px 20px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.10);
+    cursor: pointer; transition: border-color .12s, background .12s, transform .12s;
   }
-  .opt + .opt { margin-top: 9px; }
-  .opt:hover:not(:disabled) { border-color: var(--accent); transform: translateX(2px); }
+  .opt + .opt { margin-top: 10px; }
+  .opt:hover:not(:disabled) {
+    border-color: var(--accent); background: rgba(255,255,255,.12);
+    transform: translateX(2px);
+  }
   .opt:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .opt:disabled { opacity: .5; cursor: default; }
   .opt kbd {
-    flex: none; width: 22px; height: 22px; display: grid; place-items: center;
-    border: 1px solid var(--rule); border-radius: 5px; font-size: 11px;
-    background: var(--panel); font-family: inherit;
+    flex: none; width: 26px; height: 26px; display: grid; place-items: center;
+    border: 0; border-radius: 50%; font-size: 12px; font-weight: 700;
+    font-family: inherit; text-transform: lowercase; color: var(--accent);
+    background: rgba(0,0,0,.30);
+    box-shadow: inset 0 2px 5px rgba(0,0,0,.5),
+                inset 0 -1px 0 rgba(255,255,255,.07),
+                0 1px 0 rgba(255,255,255,.08);
   }
-  .opt .fx { font-size: 11px; color: var(--ink-soft); margin-top: 4px; }
 
   /* ---- consequences (post-choice, pre-advance) */
   .consequence { text-align: center; padding: 8px 0 4px; }
@@ -175,6 +173,12 @@
     color: var(--ink-soft); border-style: dashed; font-weight: 400; font-size: 13px;
   }
   #continue-btn { max-width: 260px; display: block; margin: 0 auto; }
+  #cq-scavenge { border-top: 1px solid var(--rule); margin: 22px 0 26px; padding-top: 20px; }
+  #cq-scavenge .narrative { font-size: 16px; margin-bottom: 14px; }
+  #cq-story { font-size: 16px; text-align: left; margin: 20px 0 8px; }
+  .scv-event { font-size: 14px; font-weight: 700; }
+  .scv-event.grim { color: var(--sick); }
+  .scv-event.good { color: var(--well); }
 
   /* ---- journal + notes */
   .note {
@@ -182,6 +186,10 @@
     padding: 9px 12px; border-radius: 0 6px 6px 0; font-size: 13px; margin-bottom: 14px;
   }
   .note b { color: var(--accent); }
+  .note.fatal { border-left-color: var(--sick); }
+  .note.fatal b { color: var(--sick); }
+  .note.trail { border-left-color: var(--tired); }
+  .note.trail b { color: var(--tired); }
   .log { max-height: 260px; overflow-y: auto; font-size: 13px; }
   .log .row { padding: 9px 0; border-top: 1px dotted var(--rule); }
   .log .row:first-child { border-top: 0; }
@@ -196,7 +204,7 @@
     border: 1px solid var(--rule); border-radius: 7px; padding: 9px 11px; width: 100%;
   }
   button.go {
-    background: var(--accent); color: #fff; border-color: var(--accent);
+    background: var(--accent); color: var(--on-accent); border-color: var(--accent);
     cursor: pointer; font-weight: 700; letter-spacing: .06em;
   }
   button.go:hover { filter: brightness(1.08); }
@@ -229,12 +237,10 @@
 <header>
   <h1>Westward Trail</h1>
   <div class="header-right">
-    <label class="devmode" for="devmode"
-      title="Show each option's proposed effects before you choose -- spoils the surprise, useful for testing.">
-      <input type="checkbox" id="devmode">Dev mode
-    </label>
+    <button class="music" id="music-btn" title="Toggle the background music">🔊 Music</button>
   </div>
 </header>
+<audio id="bgm" src="/audio/background_music.mp3" loop preload="auto"></audio>
 
 <main>
   <!-- setup ------------------------------------------------------------- -->
@@ -247,13 +253,6 @@
     <div class="field">
       <label for="strategy">Prompt strategy</label>
       <select id="strategy" class="mono"></select>
-    </div>
-    <div class="field check">
-      <label for="scorer"><input type="checkbox" id="scorer" checked>
-        Price the options with a separate scorer call</label>
-      <div class="hint">The day and its three options are written first, with no
-        numbers attached. Only once you pick one is it priced, under stricter
-        rules -- the other two are never scored at all.</div>
     </div>
     <div class="field"><button class="go" id="begin">Set out west</button></div>
     <div class="err" id="setup-err" hidden></div>
@@ -273,6 +272,11 @@
           <div><b id="r-bullets">—</b><span>bullets</span></div>
           <div><b id="r-money">—</b><span>money</span></div>
         </div>
+        <button class="go" id="scavenge-btn">🌙 Scavenge tonight</button>
+        <div class="hint">Send the party out in the dark instead of resting.
+          Costs 2 bullets, paid when the night is resolved. What they find —
+          or lose — is revealed only after you have chosen the day's action.
+          Once per day.</div>
       </div>
 
       <div class="card">
@@ -290,7 +294,13 @@
           <div id="options"></div>
           <div class="consequence" id="consequence" hidden>
             <div class="cq-chosen" id="cq-chosen">You chose</div>
+            <p class="narrative" id="cq-story" hidden></p>
             <div class="cq-badges mono" id="cq-badges"></div>
+            <div id="cq-scavenge" hidden>
+              <div class="cq-chosen">During the night</div>
+              <p class="narrative" id="scv-story"></p>
+              <div id="scv-events"></div>
+            </div>
             <button class="go" id="continue-btn">Continue west →</button>
           </div>
         </div>
@@ -326,19 +336,33 @@ const api = async (path, body) => {
 let gameId = null;
 let options = [];
 let busy = false;
-let lastTurn = null;
 let lastState = null;
 let awaitingContinue = false;
-let devMode = localStorage.getItem("wt-devmode") === "1";
 let imageToken = 0;
+let musicOn = localStorage.getItem("wt-music") !== "0";
+
+function renderMusicBtn() {
+  $("music-btn").textContent = musicOn ? "🔊 Music on" : "🔇 Music off";
+}
+let scavengeArmed = false;
+
+// Armed before choosing, resolved server-side with the choice, reset by the
+// next renderTurn -- so "once per night" needs no bookkeeping beyond this.
+function setScavenge(armed, enabled) {
+  scavengeArmed = armed;
+  const b = $("scavenge-btn");
+  b.disabled = !enabled;
+  b.classList.toggle("armed", armed);
+  b.textContent = armed ? "🌙 Scavenging tonight ✓" : "🌙 Scavenge tonight";
+}
 
 // The pixel-art scene image generates in the background (see serve.py's
 // _generate_scene_image) while the player is reading the day's options --
 // exactly when the GPU would otherwise sit idle. This just polls for it.
 const PLACEHOLDER_FALLBACK = "data:image/svg+xml;utf8," + encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180">'
-  + '<rect width="320" height="180" fill="#2e2820"/>'
-  + '<text x="50%" y="50%" fill="#a2947a" font-family="monospace" font-size="12" '
+  + '<rect width="320" height="180" fill="#3a2d20"/>'
+  + '<text x="50%" y="50%" fill="#b3a080" font-family="monospace" font-size="12" '
   + 'text-anchor="middle" dominant-baseline="middle">the scene is being drawn…</text></svg>'
 );
 
@@ -422,7 +446,11 @@ function renderState(s) {
     if (gone) chips = `<span class="chip dead">lost</span>`;
     else if (!p.sick && !p.tired) chips = `<span class="chip well">well</span>`;
     else {
-      if (p.sick) chips += `<span class="chip sick">sick</span>`;
+      if (p.sick) {
+        chips += p.fatal_illness
+          ? `<span class="chip sick" title="${esc(p.fatal_illness)}">gravely ill</span>`
+          : `<span class="chip sick">sick</span>`;
+      }
       if (p.tired) chips += `<span class="chip tired">tired</span>`;
     }
     return `<div class="${cls}">
@@ -436,25 +464,23 @@ function renderState(s) {
 }
 
 function renderTurn(turn) {
-  lastTurn = turn;
-  document.querySelectorAll(".note.referee").forEach((n) => n.remove());
+  document.querySelectorAll(".note.referee, .note.fatal, .note.trail").forEach((n) => n.remove());
   $("turn").hidden = false;
   $("end").hidden = true;
   $("consequence").hidden = true;
+  $("cq-scavenge").hidden = true;
   $("options").hidden = false;
+  setScavenge(false, (lastState?.bullets ?? 0) >= 2);
   $("narrative").textContent = turn.narrative;
   resetSceneImage();
   pollSceneImage();
   options = turn.options;
-  $("options").innerHTML = options.map((o, i) => {
-    // o.effects is null in scorer mode: nothing has been priced yet, by design
-    // (see serve.py start_turn) -- devMode has nothing to preview until then.
-    const fx = devMode ? describeEffects(o.effects || {}) : "";
-    return `<button class="opt" data-i="${i}">
-      <kbd>${i + 1}</kbd>
-      <span>${esc(o.text)}${fx ? `<div class="fx mono">${esc(fx)}</div>` : ""}</span>
-    </button>`;
-  }).join("");
+  $("options").innerHTML = options.map((o, i) =>
+    `<button class="opt" data-i="${i}">
+      <kbd>${String.fromCharCode(97 + i)}</kbd>
+      <span>${esc(o.text)}</span>
+    </button>`
+  ).join("");
   document.querySelectorAll(".opt").forEach((b) =>
     b.addEventListener("click", () => pick(+b.dataset.i)));
 }
@@ -462,29 +488,50 @@ function renderTurn(turn) {
 function renderConsequence(d) {
   $("options").hidden = true;
   $("consequence").hidden = false;
-  document.querySelectorAll(".note.referee").forEach((n) => n.remove());
+  document.querySelectorAll(".note.referee, .note.fatal, .note.trail").forEach((n) => n.remove());
   $("cq-chosen").innerHTML = `You chose<b>${esc(d.chosen)}</b>`;
+  $("cq-story").textContent = d.story || "";
+  $("cq-story").hidden = !d.story;
   const badges = effectBadges(d.effects || {});
   $("cq-badges").innerHTML = badges.length
     ? badges.map((b) => `<span class="cq-badge ${b.kind}">${esc(b.text)}</span>`).join("")
     : `<span class="cq-badge empty">Nothing of numeric consequence</span>`;
+  const scv = d.scavenge;
+  $("cq-scavenge").hidden = !scv;
+  if (scv) {
+    $("scv-story").textContent = scv.skipped
+      ? "The party meant to scavenge, but with so few bullets left no one "
+        + "dared step out into the dark. It takes 2."
+      : scv.story || "";
+    $("scv-events").innerHTML = scv.events?.length
+      ? scv.events.map((t) =>
+          `<div class="scv-event ${/died|fell sick|wounded|spent|lost/.test(t) ? "grim" : "good"}">${esc(t)}</div>`
+        ).join("")
+      : "";
+  }
+  setScavenge(false, false);
   if (d.violations?.length) showNote(d.violations);
+  if (d.events?.length) {
+    const grave = d.events.filter(isGraveEvent);
+    const trail = d.events.filter((e) => !isGraveEvent(e));
+    if (grave.length) showFatalNote(grave);
+    if (trail.length) showTrailNote(trail);
+  }
   awaitingContinue = true;
 }
 
 function renderEnd(state) {
   $("turn").hidden = true;
   $("end").hidden = false;
+  setScavenge(false, false);
   const [verdict, note] = VERDICTS[state.finished] || [state.finished, ""];
   $("verdict").textContent = verdict;
   $("end-note").textContent = `${note} You lasted ${state.day - 1} days and `
     + `covered ${state.miles} miles.`;
 }
 
-// Dev mode shows the model's *proposed* effects before you choose -- useful for
-// scrutinizing the game master, but it spoils the whole point of playing. Off by
-// default; the journal shows the real repercussions after a choice regardless,
-// since by then they're history rather than a spoiler.
+// Journal-only: flattens a day's applied effects into one line. By the time
+// an entry is in the journal it is history rather than a spoiler.
 function describeEffects(fx) {
   const parts = [];
   for (const k of ["miles", "food", "oxen", "bullets", "money"]) {
@@ -540,6 +587,17 @@ function renderLog(log) {
         ${e.violations.length
           ? `<div class="d" style="color:var(--sick)">referee clamped: ${esc(e.violations.join(", "))}</div>`
           : ""}
+        ${e.events?.filter(isGraveEvent).length
+          ? `<div class="d" style="color:var(--sick)">☠ ${esc(e.events.filter(isGraveEvent).join(" "))}</div>`
+          : ""}
+        ${e.events?.filter((t) => !isGraveEvent(t)).length
+          ? `<div class="d" style="color:var(--tired)">✦ ${esc(e.events.filter((t) => !isGraveEvent(t)).join(" "))}</div>`
+          : ""}
+        ${e.scavenge
+          ? `<div class="d">🌙 ${esc(e.scavenge.skipped
+              ? "Wanted to scavenge, but had too few bullets."
+              : e.scavenge.events.join(" "))}</div>`
+          : ""}
       </div>`;
       }).join("")
     : `<div class="d">Nothing has happened yet.</div>`;
@@ -556,6 +614,32 @@ function showNote(violations) {
   el.className = "note referee";
   el.innerHTML = `<b>Referee note:</b> the game master proposed illegal effects, `
     + `clamped by the harness — <span class="mono">${esc(violations.join(", "))}</span>`;
+  $("turn").prepend(el);
+}
+
+// Deadly illness onset/death is rolled by the harness itself (see engine.py's
+// apply_effects), never proposed by the LLM, so it needs its own note rather
+// than piggybacking on the referee one above.
+function showFatalNote(events) {
+  const el = document.createElement("div");
+  el.className = "note fatal";
+  el.innerHTML = `<b>Grave news:</b> ${esc(events.join(" "))}`;
+  $("turn").prepend(el);
+}
+
+// Harness events span trades, finds, and fatigue as well as deaths -- "Grave
+// news" only fits the latter. Matches the exact death/illness vocabulary
+// engine.py writes (died, starved to death, gravely ill, killed, and the
+// "never came back" euphemism for an approach gone wrong), so a keyword
+// check is reliable here without needing the harness to tag severity itself.
+function isGraveEvent(text) {
+  return /died|starved to death|gravely ill|killed|never came back/i.test(text);
+}
+
+function showTrailNote(events) {
+  const el = document.createElement("div");
+  el.className = "note trail";
+  el.innerHTML = `<b>Trail news:</b> ${esc(events.join(" "))}`;
   $("turn").prepend(el);
 }
 
@@ -596,7 +680,8 @@ async function pick(i) {
   setBusy(true, pickRandom(CONSEQUENCE_LINES));
   $("game-err").hidden = true;
   try {
-    const d = await api("/api/choose", { game_id: gameId, index: i });
+    const d = await api("/api/choose",
+      { game_id: gameId, index: i, scavenge: scavengeArmed });
     renderState(d.state);
     renderLog(d.log);
     renderConsequence(d);
@@ -635,12 +720,11 @@ async function begin() {
   $("setup-err").hidden = true;
   $("begin").disabled = true;
   $("begin").innerHTML = `<span class="spinner"></span>Waking the game master…`;
+  startMusic();
   try {
-    const scorer = $("scorer").checked;
     const d = await api("/api/new", {
       model: $("model").value.trim(),
       strategy: $("strategy").value,
-      scorer,
     });
     gameId = d.game_id;
     $("setup").hidden = true;
@@ -661,23 +745,39 @@ document.addEventListener("keydown", (e) => {
   if ($("game").hidden || busy) return;
   if (awaitingContinue) { continueTurn(); return; }
   if ($("turn").hidden || $("options").hidden) return;
-  const i = parseInt(e.key, 10) - 1;
+  // a/b/c match the visible chips; 1/2/3 stay as legacy hotkeys.
+  let i = parseInt(e.key, 10) - 1;
+  if (Number.isNaN(i)) i = "abc".indexOf(e.key.toLowerCase());
   if (i >= 0 && i < options.length) pick(i);
 });
 document.addEventListener("click", () => { if (awaitingContinue) continueTurn(); });
+$("scavenge-btn").addEventListener("click", (e) => {
+  e.stopPropagation();
+  if (busy || awaitingContinue || $("scavenge-btn").disabled) return;
+  setScavenge(!scavengeArmed, true);
+});
 $("begin").addEventListener("click", begin);
 $("again").addEventListener("click", () => location.reload());
-$("devmode").checked = devMode;
-$("devmode").addEventListener("change", () => {
-  devMode = $("devmode").checked;
-  localStorage.setItem("wt-devmode", devMode ? "1" : "0");
-  if (lastTurn && !$("turn").hidden) renderTurn(lastTurn);
+
+// Autoplay is blocked until a user gesture, so playback starts from the
+// "Set out west" click (or the toggle itself); the toggle just remembers.
+function startMusic() {
+  if (musicOn) $("bgm").play().catch(() => {});
+}
+$("bgm").volume = 0.35;
+renderMusicBtn();
+$("music-btn").addEventListener("click", (e) => {
+  e.stopPropagation();
+  musicOn = !musicOn;
+  localStorage.setItem("wt-music", musicOn ? "1" : "0");
+  if (musicOn) $("bgm").play().catch(() => {});
+  else $("bgm").pause();
+  renderMusicBtn();
 });
 
 (async () => {
   const cfg = await (await fetch("/api/config")).json();
   $("model").value = cfg.default_model;
-  $("scorer").checked = cfg.default_scorer;
   $("strategy").innerHTML = cfg.strategies
     .map((s) => `<option${s === cfg.default_strategy ? " selected" : ""}>${s}</option>`)
     .join("");

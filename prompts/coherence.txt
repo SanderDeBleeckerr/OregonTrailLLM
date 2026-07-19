@@ -8,7 +8,7 @@ COHERENCE RULES -- every number must follow from the action's own words:
 7. Sentiment must match how the day actually went for the party, on the scale despairing < grim < uneasy < okay < hopeful < elated. Move it from the party's current mood only as far as the day's outcome earns.
 8. A "food" number you state is the day's ENTIRE food change, meals included -- the party eats 5 lbs per living member daily. If the action itself neither gains nor spends food, omit the key and the harness charges the meals on its own.
 
-Example, for a party of 4 whose mood is "okay" and whose members are in decent health:
+Example, for a party of 3 whose mood is "okay" and whose members are in decent health:
 
 Today's event: A rainstorm has swollen the creek ahead. The oxen balk at the muddy bank.
 Actions:

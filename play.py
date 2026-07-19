@@ -66,10 +66,14 @@ def main() -> None:
         violations = check_rules(state, choice.get("text", ""), effects)
         if violations:
             print(f"(referee note: clamped illegal effects {violations})")
-        state = apply_effects(state, effects)
+        state, events = apply_effects(state, effects)
+        for event in events:
+            print(f"(!) {event}")
         history += (
             f"Day {state.day - 1}: {data.get('narrative','')} "
-            f"Chosen: {choice.get('text','')} Effects: {json.dumps(effects)}\n"
+            f"Chosen: {choice.get('text','')} Effects: {json.dumps(effects)}"
+            + (f" Harness event: {' '.join(events)}" if events else "")
+            + "\n"
         )
 
     print(f"\nGame over: {state.finished()}")

@@ -12,5 +12,10 @@ Respond ONLY with a JSON object (no markdown fences, no prose outside JSON):
 Write NO numbers or effects for the options -- a separate scorekeeper assigns
 the consequences. Every option must be an object with a "text" key, never a
 bare string. Each option must be a concrete action the party could take today,
-and the three must differ meaningfully (e.g. push on / wait / spend something).
+and the three must differ in KIND, not merely in pace -- travelling fast,
+travelling slow, and staying put is ONE kind of choice, not three. Root at
+least two options in today's specific event: people can be talked to, things
+repaired, routes scouted, goods traded, the sick tended, game hunted.
+Never offer an option the current state cannot pay for: hunting needs at
+least 10 bullets, and spending needs the money actually on hand.
 believed_state must reflect the game BEFORE today's options are taken.

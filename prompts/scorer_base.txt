@@ -9,7 +9,6 @@ Respond ONLY with a JSON object (no markdown fences, no prose outside JSON):
     {"food": int, "oxen": int, "bullets": int, "money": int, "miles": int,
      "party_health": {"<name>": int},
      "party_status": {"<name>": {"sick": bool, "tired": bool}},
-     "event": {"<name>": {"fight": bool, "tired": bool}, 
     ... exactly one object per action, in the same order as the actions ...
   ]
 }

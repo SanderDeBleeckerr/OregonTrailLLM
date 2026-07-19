@@ -20,6 +20,9 @@ SCORER_BASE = _load("scorer_base.txt")
 # Coherence constraints (a single narrate+score call kept breaking these) + a
 # worked example, always used together, never apart.
 COHERENCE = _load("coherence.txt")
+SCAVENGE = _load("scavenge.txt")
+ENCOUNTER = _load("encounter.txt")
+OUTCOME = _load("outcome.txt")
 
 _EFFECT_RULES = [
     'miles per option must be between 0 and 25.',
@@ -77,13 +80,43 @@ def narrate_prompt(state_text: str, history: str, extra: str = "") -> str:
     )
 
 
-def effects_prompt(state_text: str, narrative: str, option_texts: list[str]) -> str:
+def effects_prompt(state_text: str, narrative: str, option_texts: list[str],
+                   extra: str = "") -> str:
     actions = "\n".join(f"{i}. {t}" for i, t in enumerate(option_texts, 1))
     return (
         f"{SCORER_BASE}\n\n{SCORER_RULES}\n\n{COHERENCE}\n\n"
-        f"{state_text}\n\nToday's event: {narrative}\n\n"
+        f"{extra}{state_text}\n\nToday's event: {narrative}\n\n"
         f"Actions:\n{actions}\n\n"
         f"Give exactly {len(option_texts)} effect objects, one per action, in order."
+    )
+
+
+def encounter_prompt(state_text: str, history: str) -> str:
+    return (
+        f"{BASE}\n\n{NARRATE_SCHEMA}\n\n{ENCOUNTER}\n\nRecent events:\n{history}\n\n"
+        f"{state_text}\nGenerate the next turn."
+    )
+
+
+def outcome_prompt(state_text: str, history: str, narrative: str,
+                   chosen: str, consequences: list[str]) -> str:
+    facts = "\n".join(f"- {c}" for c in consequences) \
+        or "- The day changed nothing of note."
+    return (
+        f"{OUTCOME}\n\nRecent events:\n{history}\n\n{state_text}\n\n"
+        f"This morning: {narrative}\n\nThe party chose: {chosen}\n\n"
+        f"What came of it (fixed, already applied):\n{facts}\n\n"
+        f"Write the story."
+    )
+
+
+def scavenge_prompt(state_text: str, history: str, outcomes: list[str]) -> str:
+    facts = "\n".join(f"- {o}" for o in outcomes) \
+        or "- Nothing was found and no one was harmed."
+    return (
+        f"{SCAVENGE}\n\nRecent events:\n{history}\n\n{state_text}\n\n"
+        f"What the night yielded (fixed, already applied):\n{facts}\n\n"
+        f"Write the story."
     )
 
 

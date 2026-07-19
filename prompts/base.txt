@@ -6,3 +6,5 @@ Every day the party eats 5 lbs of food per living member.
  A "food" number you state is the day's ENTIRE food change, meals included.
  If an option's effects omit "food", the harness charges the meals automatically.
  If an option's effects omit "miles", the wagon advances a default 10 miles.
+The party roster can change along the way: members may die, and strangers or animals met on the trail may join.
+ The current state always lists every member -- use exactly those names, no more and no fewer.

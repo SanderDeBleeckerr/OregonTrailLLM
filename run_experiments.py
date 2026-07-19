@@ -109,10 +109,12 @@ def play_one_game(client: OllamaClient, strategy: str, mode: str, seed: int,
             "chosen": str(choice.get("text", ""))[:120],
         })
 
-        state = apply_effects(state, effects)
+        state, events = apply_effects(state, effects)
         history += (
             f"Day {state.day - 1}: {data.get('narrative','')} "
-            f"Chosen: {choice.get('text','')} Effects: {json.dumps(effects)}\n"
+            f"Chosen: {choice.get('text','')} Effects: {json.dumps(effects)}"
+            + (f" Harness event: {' '.join(events)}" if events else "")
+            + "\n"
         )
 
         if mode == "blind" and turn in QUIZ_TURNS:
