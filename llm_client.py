@@ -7,7 +7,7 @@ import urllib.error
 import urllib.request
 
 FALLBACK_NUM_CTX = 32768
-DEFAULT_MODEL = "hf.co/bartowski/Qwen2.5-14B-Instruct-GGUF:IQ4_XS"
+DEFAULT_MODEL = "gemma4:e4b"
 
 
 class OllamaClient:

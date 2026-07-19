@@ -1,29 +1,7 @@
 """Local web UI for Westward Trail.
 
     python serve.py                                  # DEFAULT_MODEL
-    python serve.py --model qwen2.5:32b --strategy rules_explicit
 
-Serves a browser front end on http://localhost:8080 that plays the same game
-as play.py against the same local Ollama server. The harness stays the single
-source of truth: the browser only ever renders state the engine has already
-validated and clamped, and the referee's clamps are surfaced in the UI rather
-than hidden, since those violations are the point of the experiment.
-
-Each turn is three round trips, not one: /api/new or /api/advance narrates the
-day and its three options with no numbers attached; /api/choose prices and
-applies only the one option the player actually picked, then stops without
-narrating the next day; /api/advance (again) picks the story back up once the
-player has seen the consequences. Nothing is priced for options that were
-never chosen, and nothing about the outcome reaches the browser before the
-player commits to a choice.
-
-Scene images run through image_server.py (diffusers + CUDA), a separate
-process since it needs its own model resident in VRAM. `python serve.py`
-alone is still enough to start both: this launches image_server.py as a
-child process automatically unless something is already answering on
---image-host, and stops it on exit. Pass --no-image to skip it entirely.
-
-Deliberately stdlib-only (no Flask), to keep setup at `python serve.py`.
 """
 from __future__ import annotations
 
@@ -125,7 +103,13 @@ def ask_json(game: dict, prompt: str, temperature: float, valid) -> dict:
 
 
 def _texts(data: dict) -> list[str]:
-    return [str(o.get("text", "?")) for o in data["options"][:3] if isinstance(o, dict)]
+    out: list[str] = []
+    for o in data["options"][:3]:
+        if isinstance(o, dict):
+            out.append(str(o.get("text", "?")))
+        elif isinstance(o, str) and o.strip():
+            out.append(o.strip())
+    return out
 
 
 def _has_options(d: dict) -> bool:
@@ -180,8 +164,11 @@ def start_turn(game: dict) -> dict:
 
     if not game["scorer"]:
         data = ask_json(game, game["build"](state_text, history), 0.8, _has_options)
-        options = [{"text": str(o.get("text", "?")), "effects": o.get("effects") or {}}
-                   for o in data["options"][:3] if isinstance(o, dict)]
+        options = [
+            {"text": o.strip(), "effects": {}} if isinstance(o, str)
+            else {"text": str(o.get("text", "?")), "effects": o.get("effects") or {}}
+            for o in data["options"][:3] if isinstance(o, (dict, str))
+        ]
     else:
         data = ask_json(game, narrate_prompt(state_text, history), 0.8, _has_options)
         options = [{"text": t, "effects": None} for t in _texts(data)]
