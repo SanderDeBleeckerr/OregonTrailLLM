@@ -1,10 +1,4 @@
-"""Local web UI for Westward Trail.
-
-    python serve.py                                  # DEFAULT_MODEL
-
-"""
 from __future__ import annotations
-
 import argparse
 import base64
 import json
@@ -35,7 +29,13 @@ from engine import (
     scavenge,
     state_dict,
 )
-from llm_client import DEFAULT_MODEL, OllamaClient, SceneImageClient
+from llm_client import (
+    DEFAULT_MODEL,
+    DEFAULT_TEXT_HOST,
+    SceneImageClient,
+    TextClient,
+    ensure_text_server,
+)
 from prompts import (
     INTRO,
     STRATEGIES,
@@ -52,8 +52,6 @@ WEB = ROOT / "web"
 AUDIO = ROOT / "audio"
 
 MAX_PARSE_MISSES = 3
-# Scene images go to image_server.py (diffusers + CUDA), not Ollama -- Ollama's
-# image models route through MLX, which doesn't exist on Windows.
 IMAGE_HOST = "http://localhost:8090"
 
 
@@ -66,15 +64,6 @@ def _image_server_alive(host: str) -> bool:
 
 
 def _launch_image_server(host: str) -> subprocess.Popen | None:
-    """Start image_server.py as a child process so `python serve.py` alone is
-    enough -- nobody wants to open a second terminal for this.
-
-    Only spawns if nothing is already answering on that host: lets someone
-    run image_server.py separately (e.g. to iterate on it without reloading
-    the LLM client) without ending up with two processes fighting over the
-    same GPU. Doesn't block on the model finishing loading -- the game's
-    existing pending/placeholder flow already tolerates that.
-    """
     if _image_server_alive(host):
         print(f"  scene image : {host} (already running)")
         return None
@@ -133,9 +122,6 @@ def _has_options(d: dict) -> bool:
 
 
 def _low_bullet_note(state: GameState) -> str:
-    """A stated fact beats a conditional the model must evaluate itself: told
-    'you have 6 bullets, a hunt needs 10' small models still priced hunts, but
-    told outright that hunting is off the table today, they mostly comply."""
     if state.bullets >= HUNT_BULLET_COST:
         return ""
     return (
@@ -146,16 +132,6 @@ def _low_bullet_note(state: GameState) -> str:
 
 
 def _generate_scene_image(game: dict, day: int, narrative: str) -> None:
-    """Kick off a background image for today's scene; never blocks the turn.
-
-    The GPU is otherwise idle while the player reads and picks an option, so
-    this runs concurrently with that instead of adding latency to start_turn.
-    Deliberately doesn't take game["lock"] -- start_turn runs inside it, and
-    that lock isn't reentrant. Only the "image" key is touched here, nothing
-    else reads or writes it, so plain dict-item assignment (atomic under the
-    GIL) is enough; a day token guards against a stale image from a previous
-    turn landing after the player has already moved on.
-    """
     client = game.get("image_client")
     if client is None:
         return
@@ -176,17 +152,6 @@ def _generate_scene_image(game: dict, day: int, narrative: str) -> None:
 
 
 def start_turn(game: dict) -> dict:
-    """Narrative + option texts for the day. Nothing here is priced yet.
-
-    In single-call mode the model has no choice but to return effects for all
-    three options in this same call -- there is no way to defer arithmetic
-    without a second round trip, which is exactly what single-call mode is
-    trading away. Those effects are carried on the option so a picked one can
-    be applied without another call, but they are never sent to the browser
-    until the player has actually chosen (see the /api/new and /api/advance
-    handlers), so nothing about the *player experience* depends on which mode
-    is running.
-    """
     state: GameState = game["state"]
     state_text = "Current true state: " + state.summary()
     history = game["history"][-4000:]
@@ -223,12 +188,6 @@ def start_turn(game: dict) -> dict:
 
 
 def score_choice(game: dict, turn: dict, option: dict) -> dict:
-    """Price exactly the one action the player took.
-
-    Single-call mode already knows this option's effects from start_turn. In
-    scorer mode, this is the only scoring call the whole turn makes -- the two
-    options not picked are never priced at all.
-    """
     if option["effects"] is not None:
         return option["effects"]
     state: GameState = game["state"]
@@ -265,12 +224,6 @@ def effect_lines(effects: dict, events: list[str]) -> list[str]:
 
 
 def day_story(game: dict, narrative: str, chosen: str, consequences: list[str]) -> str:
-    """Narrate how the chosen action produced the already-applied consequences.
-
-    Like the scavenge story, this invents nothing -- the results are handed to
-    it as fixed facts -- and it is a bonus: if the model can't tell it, the
-    consequence screen simply shows the badges alone.
-    """
     state_text = "Current true state: " + game["state"].summary()
     try:
         data = ask_json(
@@ -302,7 +255,7 @@ def scavenge_story(game: dict, events: list[str]) -> str:
 def new_game(model: str, strategy: str, host: str, scorer: bool, image_host: str | None) -> dict:
     game = {
         "state": GameState(),
-        "client": OllamaClient(model=model, host=host),
+        "client": TextClient(model=model, host=host),
         "image_client": SceneImageClient(host=image_host) if image_host else None,
         "image": None,
         "build": STRATEGIES[strategy],
@@ -321,15 +274,6 @@ def new_game(model: str, strategy: str, host: str, scorer: bool, image_host: str
 
 
 def choose(game: dict, index: int, scavenge_tonight: bool = False) -> dict:
-    """Price and apply exactly the player's pick, then resolve the night.
-
-    This does NOT generate the following day -- that only happens once the
-    player has seen the consequences of this choice and asks to continue
-    (see advance()). game["turn"] is cleared here so a stale index can't be
-    replayed against a turn that no longer exists. A requested scavenge is
-    rolled by the harness here, after the day's effects -- once per day by
-    construction, since each turn is chosen exactly once.
-    """
     turn = game.get("turn")
     options = (turn or {}).get("options") or []
     if not 0 <= index < len(options):
@@ -479,10 +423,12 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if self.path == "/api/new":
                 scorer = payload.get("scorer")
+                # The model is fixed at server start -- text_server has one
+                # checkpoint resident -- so a per-game override is ignored.
                 game = new_game(
-                    payload.get("model") or self.server.default_model,
+                    self.server.default_model,
                     payload.get("strategy") or self.server.default_strategy,
-                    self.server.ollama_host,
+                    self.server.text_host,
                     self.server.default_scorer if scorer is None else bool(scorer),
                     self.server.image_host,
                 )
@@ -535,7 +481,9 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", default=DEFAULT_MODEL)
     ap.add_argument("--strategy", default="rules_explicit", choices=STRATEGIES)
-    ap.add_argument("--host", default="http://localhost:11434", help="Ollama server")
+    ap.add_argument("--text-host", default=DEFAULT_TEXT_HOST,
+                    help="text_server.py address; spawned automatically if "
+                         "nothing answers there")
     ap.add_argument("--port", type=int, default=8080)
     ap.add_argument("--bind", default="127.0.0.1",
                     help="use 0.0.0.0 to let other machines on your LAN play")
@@ -555,12 +503,12 @@ def main() -> None:
     server.default_model = args.model
     server.default_strategy = args.strategy
     server.default_scorer = not args.single_call
-    server.ollama_host = args.host
+    server.text_host = args.text_host
     server.image_host = None if args.no_image else args.image_host
 
     url = f"http://localhost:{args.port}"
     print(f"Westward Trail is running at {url}")
-    print(f"  game master : {args.model} via {args.host}")
+    text_process = ensure_text_server(server.text_host, args.model)
     print(f"  strategy    : {args.strategy}")
     print(f"  effects     : {'narrator + scorer' if server.default_scorer else 'inline (single call)'}")
     image_process = _launch_image_server(server.image_host) if server.image_host else None
@@ -576,6 +524,8 @@ def main() -> None:
     finally:
         if image_process is not None:
             image_process.terminate()
+        if text_process is not None:
+            text_process.terminate()
 
 
 if __name__ == "__main__":

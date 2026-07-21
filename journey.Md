@@ -38,11 +38,11 @@ Game runs too slow the second LLM call can be a faster model.
 # Stage 7
 
 Just copying oregon trail is not very creative.
-Moving to something playfully funny like you're in past times trying to move your cart to the university of Harlem.
+Making it more playfully
 
 # Stage 8
 
-Cleaned up project moved prompts to txt files so they re easier to read and manipulate
+Cleaned up project: moved prompts to txt files so they re easier to read and manipulate
 
 # Stage 9
 
@@ -59,7 +59,7 @@ Refactored prompts
 
 # Stage 12 
 
-Split up promp of adventures so sometimes you have the choice between travel fast, medium, stay. And sometimes you have the option to interact with another group. Both events are seperate prompts.
+Split up prompt of adventures so sometimes you have the choice between travel fast, medium, stay. And sometimes you have the option to interact with another group. Both events are seperate prompts.
 
 # Stage 13 
 

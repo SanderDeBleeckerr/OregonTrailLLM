@@ -1,7 +1,7 @@
 """Play Westward Trail interactively against a local LLM game master.
 
-    python play.py                                 # DEFAULT_MODEL
-    python play.py --model qwen2.5:32b --strategy rules_explicit
+    python play.py                                        # DEFAULT_MODEL
+    python play.py --model Qwen/Qwen2.5-3B-Instruct --strategy rules_explicit
 """
 from __future__ import annotations
 
@@ -9,21 +9,14 @@ import argparse
 import json
 
 from engine import GameState, apply_effects, check_rules, extract_json, state_dict
-from llm_client import DEFAULT_MODEL, OllamaClient
+from llm_client import DEFAULT_MODEL, DEFAULT_TEXT_HOST, TextClient, ensure_text_server
 from prompts import INTRO, STRATEGIES
 
 MAX_PARSE_MISSES = 3
 
 
-def main() -> None:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--model", default=DEFAULT_MODEL)
-    ap.add_argument("--strategy", default="rules_explicit", choices=STRATEGIES)
-    ap.add_argument("--host", default="http://localhost:11434")
-    args = ap.parse_args()
-
-    client = OllamaClient(model=args.model, host=args.host)
-    build = STRATEGIES[args.strategy]
+def play(client: TextClient, strategy: str, model: str) -> None:
+    build = STRATEGIES[strategy]
     state = GameState()
     history = INTRO
 
@@ -36,7 +29,7 @@ def main() -> None:
         if not data or "options" not in data:
             misses += 1
             if misses >= MAX_PARSE_MISSES:
-                print(f"\n{args.model} did not return usable JSON in "
+                print(f"\n{model} did not return usable JSON in "
                       f"{MAX_PARSE_MISSES} tries. Last reply was:\n{raw[:500]!r}")
                 return
             print("(The game master mumbled something unparseable; retrying...)")
@@ -78,6 +71,22 @@ def main() -> None:
 
     print(f"\nGame over: {state.finished()}")
     print(state.summary())
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--model", default=DEFAULT_MODEL)
+    ap.add_argument("--strategy", default="rules_explicit", choices=STRATEGIES)
+    ap.add_argument("--text-host", default=DEFAULT_TEXT_HOST)
+    args = ap.parse_args()
+
+    server_process = ensure_text_server(args.text_host, args.model)
+    client = TextClient(model=args.model, host=args.text_host)
+    try:
+        play(client, args.strategy, args.model)
+    finally:
+        if server_process is not None:
+            server_process.terminate()
 
 
 if __name__ == "__main__":

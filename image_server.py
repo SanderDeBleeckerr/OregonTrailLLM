@@ -2,12 +2,9 @@
 
     python image_server.py
 
-Runs alongside serve.py, on its own port. Ollama's image-generation models
-(x/z-image-turbo) go through Apple's MLX runtime, which doesn't exist on
-Windows -- every request fails instantly with no GPU activity at all. This
-sidesteps Ollama entirely for the image piece: a plain diffusers + CUDA
-pipeline, which has real Windows wheels. Text generation (narrator/scorer/
-quiz) is untouched and stays on Ollama.
+Runs alongside serve.py, on its own port, as a plain diffusers + CUDA
+pipeline. Text generation (narrator/scorer/quiz) lives in its own sidecar,
+text_server.py, on yet another port -- one resident model per process.
 
 The checkpoint (SD-Turbo) is loaded once at startup and kept resident, since
 reloading it per request would dwarf the ~1-step inference time. Deliberately

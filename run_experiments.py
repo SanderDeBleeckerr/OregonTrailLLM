@@ -1,23 +1,18 @@
-"""Automated scrutiny experiments on the LLM game master.
-
-A scripted bot plays full games; every turn is logged as one JSONL record.
-
-Dimensions measured
--------------------
-E1 format reliability : did the model return parseable, schema-valid JSON?
-E2 rule adherence     : hard-rule violations in proposed effects (engine.check_rules)
-E3 state tracking     : per-field |believed_state - true_state| over turns, in
-                        two modes:
-                          guided : true state shown in every turn's prompt
-                                   (can the model even copy correctly?)
-                          blind  : true state shown only on turn 1; the model
-                                   must track it from the event history
-E4 memory recall      : facts stated once at game start, quizzed at turns
-                        5/10/15/20 (accuracy vs conversational distance)
+"""
+Format reliability : did the model return parseable, schema-valid JSON?
+Rule adherence     : hard-rule violations in proposed effects (engine.check_rules)
+State tracking     : per-field |believed_state - true_state| over turns, in
+                     two modes:
+                       guided : true state shown in every turn's prompt
+                                (can the model even copy correctly?)
+                       blind  : true state shown only on turn 1; the model
+                                must track it from the event history
+Memory recall      : facts stated once at game start, quizzed at turns
+                     5/10/15/20 (accuracy vs conversational distance)
 
 Usage:
-    python run_experiments.py --seeds 2 --turns 20              # DEFAULT_MODEL
-    python run_experiments.py --model qwen2.5:32b --seeds 2     # model comparison
+    python run_experiments.py --seeds 2 --turns 20                            # DEFAULT_MODEL
+    python run_experiments.py --model Qwen/Qwen2.5-14B-Instruct --seeds 2     # model comparison
 """
 from __future__ import annotations
 
@@ -27,7 +22,7 @@ import pathlib
 import random
 
 from engine import GameState, apply_effects, check_rules, extract_json
-from llm_client import DEFAULT_MODEL, OllamaClient
+from llm_client import DEFAULT_MODEL, DEFAULT_TEXT_HOST, TextClient, ensure_text_server
 from prompts import INTRO, QUIZ, STRATEGIES, quiz_prompt
 
 ROOT = pathlib.Path(__file__).parent
@@ -63,7 +58,7 @@ def believed_vs_true(believed: dict, state: GameState) -> dict:
     return err
 
 
-def play_one_game(client: OllamaClient, strategy: str, mode: str, seed: int,
+def play_one_game(client: TextClient, strategy: str, mode: str, seed: int,
                   turns: int, out: pathlib.Path, done: set[str]) -> None:
     build = STRATEGIES[strategy]
     rng = random.Random(seed)
@@ -135,31 +130,36 @@ def play_one_game(client: OllamaClient, strategy: str, mode: str, seed: int,
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", default=DEFAULT_MODEL)
-    ap.add_argument("--host", default="http://localhost:11434")
+    ap.add_argument("--text-host", default=DEFAULT_TEXT_HOST)
     ap.add_argument("--seeds", type=int, default=2)
     ap.add_argument("--turns", type=int, default=20)
     ap.add_argument("--modes", nargs="+", default=["blind", "guided"],
                     choices=["blind", "guided"])
     args = ap.parse_args()
 
-    client = OllamaClient(model=args.model, host=args.host)
+    server_process = ensure_text_server(args.text_host, args.model)
+    client = TextClient(model=args.model, host=args.text_host)
     out = RESULTS / "turns.jsonl"
     done = existing_keys(out)
 
-    for strategy in STRATEGIES:
-        for mode in args.modes:
-            for seed in range(args.seeds):
-                run_id = f"{strategy}|{mode}|s{seed}"
-                run_keys = [k for k in done if k.startswith(run_id + "|t")]
-                if run_keys:
-                    last = max(int(k.split("|t")[1].split("|")[0]) for k in run_keys)
-                    if last >= args.turns:
-                        print(f"skip completed run {run_id}")
-                        continue
-                    print(f"run {run_id} incomplete (reached t{last}); replaying")
-                print(f"=== {run_id} ===")
-                play_one_game(client, strategy, mode, seed, args.turns, out,
-                              done=set())
+    try:
+        for strategy in STRATEGIES:
+            for mode in args.modes:
+                for seed in range(args.seeds):
+                    run_id = f"{strategy}|{mode}|s{seed}"
+                    run_keys = [k for k in done if k.startswith(run_id + "|t")]
+                    if run_keys:
+                        last = max(int(k.split("|t")[1].split("|")[0]) for k in run_keys)
+                        if last >= args.turns:
+                            print(f"skip completed run {run_id}")
+                            continue
+                        print(f"run {run_id} incomplete (reached t{last}); replaying")
+                    print(f"=== {run_id} ===")
+                    play_one_game(client, strategy, mode, seed, args.turns, out,
+                                  done=set())
+    finally:
+        if server_process is not None:
+            server_process.terminate()
 
     print("Done. Now run: python analyze.py")
 

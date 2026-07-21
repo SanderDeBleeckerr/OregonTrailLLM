@@ -9,7 +9,7 @@ This is a solo project. Deliverables are a **max 5-page ICML-format report** (La
 
 ## What the project is
 
-An **Oregon Trail clone** where a local LLM (via Ollama) is the game master. A Python harness holds the authoritative game state and enforces hard rules; the LLM narrates events, proposes options with numeric consequences, and tries to track state. Because ground truth always lives in the harness, every turn yields measurable data for the scrutiny experiments.
+An **Oregon Trail clone** where a local LLM (HF transformers on PyTorch, served by `text_server.py`) is the game master. A Python harness holds the authoritative game state and enforces hard rules; the LLM narrates events, proposes options with numeric consequences, and tries to track state. Because ground truth always lives in the harness, every turn yields measurable data for the scrutiny experiments.
 
 Reference game: https://oregontrail.ws/games/the-oregon-trail/
 
@@ -18,7 +18,8 @@ Reference game: https://oregontrail.ws/games/the-oregon-trail/
 ```
 engine.py            Authoritative game state, rule checks, effect clamping
 prompts.py           3 GM strategies, narrator/scorer pair, intro, quiz questions
-llm_client.py        Ollama HTTP client, think-block stripping, leak detection
+llm_client.py        HTTP client for text_server, think-block stripping, server spawn helper
+text_server.py       Text generation: HF transformers + torch (NF4 on CUDA), own port
 configs/text-llm-options.json  Model catalog by VRAM tier (non-thinking models only)
 image_server.py      Scene images: SD-Turbo via diffusers + CUDA, own port
 serve.py             Local web server (stdlib http.server) — the "app" deliverable
@@ -55,12 +56,12 @@ Vocabulary: the **scorer** is an LLM and only *proposes*. The **referee** is
 
 ## Hard constraints
 
-- **Local inference only.** No cloud APIs, no API keys. This is why the web UI is served locally: a remotely hosted page could not reach the model.
-- **Non-thinking models only.** Never auto-select deepseek-r1, qwen3, gpt-oss, qwq, magistral, or anything that emits `<think>` blocks. The model catalog (`configs/text-llm-options.json`) is the single source of truth for allowed models. Always strip `<think>`/`<thinking>` blocks defensively anyway.
-- **num_ctx must be set explicitly.** Ollama defaults to 4096 tokens regardless of the model's native max. The game needs ≥8192 (16384 preferred). Always pass `options.num_ctx` in every API call. Never rely on the default.
+- **Local inference only.** No cloud APIs, no API keys. Text runs through `text_server.py` (HF transformers on the local PyTorch/CUDA install); this is why the web UI is served locally: a remotely hosted page could not reach the model.
+- **Non-thinking models only.** Never auto-select deepseek-r1, qwen3, gpt-oss, qwq, magistral, or anything that emits `<think>` blocks. The model catalog (`configs/text-llm-options.json`) is the single source of truth for allowed models. `llm_client.strip_think` removes `<think>`/`<thinking>` blocks defensively anyway.
+- **The context budget is explicit.** `text_server.py --ctx` (default 16384) bounds prompt + completion tokens and the KV cache; the game needs ≥8192. Over-budget prompts are left-truncated server-side, and callers keep passing a rolling history window (`history[-4000:]` / `[-6000:]`).
 - **The harness is the referee.** The LLM proposes effects; the harness validates and clamps them. The game must never enter an illegal state regardless of what the model outputs. Log every violation but don't crash.
 - **Resumable experiments.** `run_experiments.py` logs to append-only JSONL. Completed runs are skipped on rerun. A Ctrl-C must never corrupt data.
-- **No external datasets.** The test set is the game itself. No downloads required beyond the Ollama model.
+- **No external datasets.** The test set is the game itself. No downloads required beyond the HuggingFace model weights.
 
 ## Prompt strategies (the "prompt engineering" deliverable)
 
@@ -79,12 +80,14 @@ Every strategy asks for the same JSON output containing:
 
 ## Experiments (the "scrutinizing it" deliverable)
 
-| ID | Research question | Method |
+| Experiment | Research question | Method |
 |---|---|---|
-| E1 | Does the model produce schema-valid JSON reliably? | Parse rate per strategy; format-failure taxonomy |
-| E2 | Does it respect hard game rules? | Violation rate and type taxonomy via `engine.check_rules` (miles cap, ammo cost, overdrafts, unknown party members, healing caps) |
-| E3 | Can it track state over a long conversation? | Per-field \|believed − true\| over turns. Two modes: **guided** (true state shown every turn) vs **blind** (true state shown only on turn 1) |
-| E4 | Does it remember facts from early in the conversation? | Party facts stated once at game start (Elsie's weak ankle, Jonas the ex-blacksmith, Ruben the best shot), quizzed at turns 5/10/15/20 |
+| Format reliability | Does the model produce schema-valid JSON reliably? | Parse rate per strategy; format-failure taxonomy |
+| Rule adherence | Does it respect hard game rules? | Violation rate and type taxonomy via `engine.check_rules` (miles cap, ammo cost, overdrafts, unknown party members, healing caps) |
+| State tracking | Can it track state over a long conversation? | Per-field \|believed − true\| over turns. Two modes: **guided** (true state shown every turn) vs **blind** (true state shown only on turn 1) |
+| Memory recall | Does it remember facts from early in the conversation? | Party facts stated once at game start (Elsie's weak ankle, Jonas the ex-blacksmith, Ruben the best shot), quizzed at turns 5/10/15/20 |
+
+Never refer to the experiments by shorthand codes (E1/E2/E3/E4) — always use these descriptive names, in code, docs, and the report alike.
 
 Additional logged metric: **thinking leakage rate** — how often `<think>` blocks appear in the raw response despite using a non-thinking model and/or disabling thinking.
 
@@ -96,7 +99,7 @@ Additional logged metric: **thinking leakage rate** — how often `<think>` bloc
 4. Only existing party member names are valid in `party_health`.
 5. A single event never heals anyone by more than 40 HP.
 6. Daily food consumption: 5 lbs × alive party members, charged by the harness **only when the effects omit `food`**. An explicit `food` delta is the day's entire food change, meals included — otherwise the model's constant small food rewards silently cancel the meals and food never visibly drops. **This rule is stated in `prompts.BASE`** — it must be. While it was harness-only the model double-charged meals, and blind-mode food drift grew ~20/day no matter how good its recall was, measuring a hidden rule instead of context fidelity.
-7. Trail length: 200 miles. Game ends on arrival, party death, or starvation with no resources.
+7. Trail length: 200 miles. Game ends on arrival, party death, starvation with no resources, or when the last ox is lost.
 8. Per-member `sick` / `tired`: LLM-proposed **absolute booleans**, not deltas. `sick` may never be cleared for anyone at ≤30 HP; a dead member (0 HP) carries no flags.
 9. Group `sentiment`: one of `despairing|grim|uneasy|okay|hopeful|elated`, default `okay`. Only membership in that scale is enforced. How far the mood may move in a day is deliberately **un**constrained — a cap was tried and only ever fired on days the model had good reason to swing, so it manufactured violations rather than catching them.
 10. Deadly illness: whenever a turn's *applied* miles reach 20+, there's a 30% harness-rolled chance a random living, not-already-ill party member contracts cholera, dysentery, typhoid fever, or diphtheria. This is **never LLM-proposed** — `engine.apply_effects` rolls it directly, after this turn's own effects are applied, so nothing the model writes can cause or prevent it. The victim dies at the start of the *next* `apply_effects` call (one full turn of warning), goes to 0 HP, and stays dead — no rule ever revives a 0 HP member. The event text (e.g. "Jonas has fallen gravely ill with cholera.") is appended to game history so the narrator stays consistent with it, and surfaced to the player as a distinct "Grave news" note, separate from referee-clamp notes.
@@ -109,9 +112,9 @@ Additional logged metric: **thinking leakage rate** — how often `<think>` bloc
 
 ## Model selection
 
-There is no setup wizard — selection is manual. `DEFAULT_MODEL` in `llm_client.py` (`gemma4:e4b`) is what runs unless `--model` is passed. `configs/text-llm-options.json` is the catalog: pick the highest-`quality_rank` entry whose `min_vram_gb` fits the machine, pull and pass its `pull_tag` (never its `id`). The catalog's `selection_rules` and `runtime` blocks carry the VRAM/num_ctx reasoning; `llm_client.py` sets `num_ctx` on every call.
+There is no setup wizard — selection is manual. `DEFAULT_MODEL` in `llm_client.py` (`google/gemma-4-E4B-it`, loaded NF4 via bitsandbytes) is what runs unless `--model` is passed. `configs/text-llm-options.json` is the catalog: pick the highest-`quality_rank` entry whose `min_vram_gb` fits the machine and pass its `hf_id` (never its `id`). The catalog's `selection_rules` and `runtime` blocks carry the VRAM/context reasoning. The model loads once at `text_server.py` startup, so it is a server-level choice — the web UI shows it read-only and `/api/new` ignores any per-game override. NF4 entries download the full bf16 weights on first run (~16 GB for the default Gemma 4 E4B) and quantize at load.
 
-Scene images bypass Ollama entirely: `image_server.py` runs `stabilityai/sd-turbo` through diffusers + CUDA (auto-downloaded from Hugging Face on first run, ~2.5 GB). `serve.py` spawns it automatically; `--no-image` disables it and the game degrades to the placeholder art.
+`image_server.py` runs `stabilityai/sd-turbo` through diffusers + CUDA on its own port (auto-downloaded from Hugging Face on first run, ~2.5 GB). `serve.py` spawns both servers automatically; `--no-image` disables images and the game degrades to the placeholder art.
 
 ## Code style
 
@@ -120,15 +123,15 @@ Scene images bypass Ollama entirely: `image_server.py` runs `stabilityai/sd-turb
 - Write no comments and no docstrings. Code should be self-explanatory; only add a comment when the WHY is genuinely non-obvious (a hidden constraint, a subtle invariant, a workaround for a specific bug).
 - JSON parsing must handle: markdown fences, extra prose around JSON, partial/malformed output. Never crash on bad model output.
 - Every experiment record is one JSON line in a `.jsonl` file. Records have a `key` field for deduplication.
-- Print progress during experiments (`[e1] strategy item turn: result`).
+- Print progress during experiments (`=== strategy|mode|seed ===` per run).
 
 ## Report structure (ICML template, max 5 pages + appendix)
 
 1. **Introduction** — prompt engineering for game AI, why scrutiny matters, overview of the Oregon Trail concept.
-2. **Methods** — architecture (harness vs LLM split), prompt strategies (table), experiment design (E1–E4), model selection and quantization.
+2. **Methods** — architecture (harness vs LLM split), prompt strategies (table), experiment design (format reliability, rule adherence, state tracking, memory recall), model selection and quantization.
 3. **Experiments & Results** — tables and plots from `analyze.py`. Key results: format reliability, violation taxonomy with concrete examples, drift curves (blind vs guided), memory decay curve. Optional: model comparison, quantization comparison.
 4. **Discussion** — what broke (the systematic errors), why (state drift, arithmetic weakness, context limits), what would help (structured decoding, tool use, explicit state injection), limitations of the study.
-5. **References** — Ollama, the models used, ICML template, Oregon Trail history, relevant LLM evaluation literature.
+5. **References** — PyTorch/transformers/bitsandbytes, the models used, ICML template, Oregon Trail history, relevant LLM evaluation literature.
 
 ## Files that must not be committed
 
@@ -139,23 +142,20 @@ Scene images bypass Ollama entirely: `image_server.py` runs `stabilityai/sd-turb
 ## Quick start for a new contributor
 
 ```bash
-# 1. Install Ollama: https://ollama.com
-# 2. Pull the default game master model:
-ollama pull gemma4:e4b
+# 1. Install torch (CUDA build, from PyTorch's index — not PyPI) + the rest:
+pip install torch --index-url https://download.pytorch.org/whl/cu128
+pip install -r requirements.txt
 
-# 3. Play the game in the browser (http://localhost:8080):
-python serve.py            # add --no-image if torch/diffusers aren't installed
+# 2. Play the game in the browser (http://localhost:8080).
+#    First run downloads the game master weights (~16 GB) + SD-Turbo (~2.5 GB):
+python serve.py            # add --no-image to skip scene images
 #    ...or in the terminal:
 python play.py
 
-# Optional extras (scene images, analysis plots) — see requirements.txt:
-pip install torch --index-url https://download.pytorch.org/whl/cu124
-pip install -r requirements.txt
-
-# 4. Run experiments (scripted bot, ~30-45 min):
+# 3. Run experiments (scripted bot, ~30-45 min):
 python run_experiments.py --seeds 2 --turns 20
 
-# 5. Generate tables and plots for the report:
+# 4. Generate tables and plots for the report:
 python analyze.py
 # -> results/tables.md, results/tables.tex, results/*.png
 ```

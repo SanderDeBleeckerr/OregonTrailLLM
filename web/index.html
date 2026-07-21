@@ -247,8 +247,9 @@
   <section class="setup card" id="setup">
     <h2>Outfit the wagon</h2>
     <div class="field">
-      <label for="model">Ollama model</label>
-      <input id="model" class="mono" spellcheck="false">
+      <label for="model">Game master model</label>
+      <input id="model" class="mono" spellcheck="false" readonly
+             title="Fixed at server start — pass --model to serve.py to change it">
     </div>
     <div class="field">
       <label for="strategy">Prompt strategy</label>
@@ -607,6 +608,7 @@ const VERDICTS = {
   won: ["You made it west", "The wagon reached the end of the trail."],
   party_dead: ["The party is lost", "No one survived the journey west."],
   stranded: ["Stranded", "No food, no oxen, no money. The trail ends here."],
+  no_oxen: ["The wagon stands still", "Without oxen to pull it, the wagon can go no further."],
 };
 
 function showNote(violations) {
@@ -723,7 +725,6 @@ async function begin() {
   startMusic();
   try {
     const d = await api("/api/new", {
-      model: $("model").value.trim(),
       strategy: $("strategy").value,
     });
     gameId = d.game_id;

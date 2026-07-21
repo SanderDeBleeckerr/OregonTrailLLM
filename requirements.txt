@@ -1,22 +1,25 @@
-# Playing the game (serve.py / play.py) needs no packages at all — pure stdlib.
-# This file covers the two optional extras.
+# The game master runs on PyTorch (text_server.py), so torch + the packages
+# below are required to play. torch's CUDA build does NOT come from PyPI —
+# install torch FIRST from PyTorch's own index, then this file:
+#
+#   pip install torch --index-url https://download.pytorch.org/whl/cu128
+#   pip install -r requirements.txt
+#
+# cu128 covers everything from GTX 10-series through RTX 50-series (Blackwell
+# needs it — cu124 and older wheels have no sm_120 kernels). AMD, Apple
+# Silicon, or CPU-only: pick your command at
+# https://pytorch.org/get-started/locally/ (bitsandbytes NF4 is CUDA-only;
+# text_server falls back to bf16/fp32 elsewhere).
+#
+# Tested with torch 2.7+cu128 on Python 3.13.
+
+# Text game master (text_server.py):
+transformers
+accelerate
+bitsandbytes
+
+# Scene images (image_server.py) — optional, serve.py --no-image skips it:
+diffusers>=0.31
 
 # Analysis plots (analyze.py):
 matplotlib>=3.8
-
-# Scene images (image_server.py) — needs a CUDA build of torch, which does NOT
-# come from PyPI. Install torch FIRST from PyTorch's own index, then this file:
-#
-#   pip install torch --index-url https://download.pytorch.org/whl/cu124
-#   pip install -r requirements.txt
-#
-# The cu124 wheel covers NVIDIA GTX 900-series through RTX 40-series cards.
-# RTX 50-series (Blackwell) needs the cu128 wheel (torch >= 2.7): swap cu124
-# for cu128 above. AMD, Apple Silicon, or CPU-only: pick your command at
-# https://pytorch.org/get-started/locally/ — the game runs fine without
-# images at all (serve.py --no-image).
-#
-# Tested with torch 2.6.0+cu124 on Python 3.13.
-diffusers>=0.31
-transformers
-accelerate

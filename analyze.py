@@ -1,8 +1,9 @@
 """Turn results/turns.jsonl into report-ready tables and plots.
 
 Outputs (results/):
-  tables.md / tables.tex     E1 parse rate, E2 violation rates by type,
-                             E3 drift summary, E4 quiz accuracy
+  tables.md / tables.tex     parse rate (format reliability), violation rates
+                             by type (rule adherence), state-tracking drift
+                             summary, memory-recall quiz accuracy
   drift_curves.png           mean |believed - true| per field vs turn (blind)
   quiz_decay.png             recall accuracy vs quiz turn
   violations.png             violations per 100 turns, by strategy
@@ -71,10 +72,10 @@ def main() -> None:
         rows.append([s, len(sub), f"{parse:.3f}",
                      f"{100 * n_viol / max(1, len(parsed)):.1f}"])
     headers = ["Strategy", "Turns", "Parse rate", "Violations / 100 turns"]
-    md += ["## E1/E2: format reliability and rule adherence\n", md_table(headers, rows), ""]
+    md += ["## Format reliability and rule adherence\n", md_table(headers, rows), ""]
     tex.append(tex_table(headers, rows,
                          "Format reliability and hard-rule violation rate per prompt strategy.",
-                         "tab:e1e2"))
+                         "tab:format-rules"))
 
     all_types = sorted({t for c in viol_by_strat.values() for t in c})
     if all_types:
@@ -100,10 +101,10 @@ def main() -> None:
                 cells.append(f"{sum(vals) / len(vals):.1f}" if vals else "—")
             rows.append(cells)
     headers = ["Strategy", "Mode", "State reported"] + [f"MAE {f}" for f in FIELDS]
-    md += ["## E3: state-tracking error (mean absolute)\n", md_table(headers, rows), ""]
+    md += ["## State-tracking error (mean absolute)\n", md_table(headers, rows), ""]
     tex.append(tex_table(headers, rows,
                          "Mean absolute error of the model's believed state vs. ground truth.",
-                         "tab:e3"))
+                         "tab:state-tracking"))
 
     fig, ax = plt.subplots(figsize=(8, 4))
     for s in strategies:
@@ -131,9 +132,9 @@ def main() -> None:
             acc = sum(r["correct"] for r in sub) / len(sub)
             rows.append([s, len(sub), f"{acc:.3f}"])
         headers = ["Strategy", "Quiz answers", "Recall accuracy"]
-        md += ["## E4: memory recall of party facts\n", md_table(headers, rows), ""]
+        md += ["## Memory recall of party facts\n", md_table(headers, rows), ""]
         tex.append(tex_table(headers, rows,
-                             "Recall of facts stated once at game start.", "tab:e4"))
+                             "Recall of facts stated once at game start.", "tab:memory"))
 
         fig, ax = plt.subplots(figsize=(6, 3.5))
         for s in strategies:

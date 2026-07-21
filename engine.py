@@ -82,6 +82,8 @@ class GameState:
             return "party_dead"
         if self.food <= 0 and self.oxen <= 0 and self.money <= 0:
             return "stranded"
+        if self.oxen <= 0:
+            return "no_oxen"
         return None
 
     def summary(self) -> str:

@@ -1,6 +1,6 @@
 {
-  "schema_version": 1,
-  "purpose": "Model catalog for auto-selecting an Ollama model for the LLM game master. All entries are non-thinking models (no <think> leakage) with reliable JSON output.",
+  "schema_version": 2,
+  "purpose": "Model catalog for selecting the HuggingFace checkpoint text_server.py loads as the LLM game master. All entries are non-thinking, ungated instruct models (no <think> leakage, no HF license wall) with reliable JSON output, run locally via transformers on the installed PyTorch wheel.",
   "detection": {
     "nvidia": {
       "command": "nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits",
@@ -9,11 +9,11 @@
     },
     "amd": {
       "command": "rocm-smi --showmeminfo vram --csv",
-      "note": "Parse 'VRAM Total Memory (B)' column; bytes."
+      "note": "Parse 'VRAM Total Memory (B)' column; bytes. bitsandbytes NF4 is CUDA-only: on ROCm use a bf16 entry that fits instead."
     },
     "apple_silicon": {
       "command": "sysctl -n hw.memsize",
-      "note": "Unified memory in bytes; treat ~65% of total RAM as usable for the model."
+      "note": "Unified memory in bytes; treat ~65% of total RAM as usable. NF4 unavailable: use bf16 entries on the mps device."
     },
     "fallback_question": {
       "prompt": "What GPU do you have?",
@@ -46,174 +46,114 @@
     }
   },
   "selection_rules": {
-    "strategy": "Pick the highest-quality_rank model whose min_vram_gb <= detected VRAM; ties broken by smaller size_gb. Then launch it with options.num_ctx = recommended_num_ctx (never rely on Ollama's 4096 default). If VRAM is within 1 GB of min_vram_gb, halve num_ctx instead of downgrading the model.",
-    "headroom_note": "min_vram_gb already includes ~2 GB headroom for KV cache at the game's ~6k-token context.",
-    "cpu_fallback_id": "llama32-3b-q4",
-    "verify_after_pull": "ollama show <pull_tag> | grep -i quantization",
-    "context_floor": "Reject any model whose native_context < game_requirement minimum_num_ctx (8192). All current entries pass; the rule guards future additions."
+    "strategy": "Pick the highest-quality_rank model whose min_vram_gb <= detected VRAM; ties broken by smaller weights_vram_gb. Launch text_server.py --model <hf_id> (add --no-4bit only when quant is bf16). If VRAM is within 1 GB of min_vram_gb, halve --ctx instead of downgrading the model.",
+    "headroom_note": "min_vram_gb already includes ~2 GB headroom for the KV cache at the game's ~6k-token context, plus ~2.5 GB for the SD-Turbo image model sharing the card; add serve.py --no-image to reclaim that.",
+    "download_note": "NF4 entries quantize at load from the published bf16 weights, so the first-run download is the full bf16 size (download_gb), not weights_vram_gb.",
+    "cpu_fallback_id": "qwen25-1_5b-bf16",
+    "context_floor": "Reject any model whose native_context < game_requirement minimum ctx (8192). All current entries pass; the rule guards future additions."
   },
   "models": [
     {
-      "id": "llama32-3b-q3",
-      "display_name": "Llama 3.2 3B (Q3_K_M)",
-      "pull_tag": "hf.co/bartowski/Llama-3.2-3B-Instruct-GGUF:Q3_K_M",
-      "params_b": 3,
-      "quant": "Q3_K_M",
-      "size_gb": 1.6,
-      "min_vram_gb": 3,
+      "id": "qwen25-1_5b-bf16",
+      "display_name": "Qwen2.5 1.5B (bf16)",
+      "hf_id": "Qwen/Qwen2.5-1.5B-Instruct",
+      "params_b": 1.5,
+      "quant": "bf16",
+      "weights_vram_gb": 3.1,
+      "download_gb": 3.1,
+      "min_vram_gb": 4,
       "cpu_ok": true,
       "quality_rank": 1,
       "json_reliability": "fair",
       "thinking_model": false,
-      "source": "huggingface:bartowski",
-      "notes": "Absolute floor. Below-Q4 quant on a 3B: expect JSON slips and state drift. Fine as a demo/degenerate baseline. Same context caveat as the IQ4_XS variant.",
-      "native_context": 131072,
-      "recommended_num_ctx": 8192,
-      "kv_cache_gb_at_recommended": 0.6
+      "notes": "Absolute floor and the only entry usable on CPU (fp32, expect ~1 min/turn). Expect JSON slips and state drift; fine as a demo/degenerate baseline.",
+      "native_context": 32768,
+      "recommended_ctx": 8192
     },
     {
-      "id": "llama32-3b-q4",
-      "display_name": "Llama 3.2 3B (IQ4_XS)",
-      "pull_tag": "hf.co/bartowski/Llama-3.2-3B-Instruct-GGUF:IQ4_XS",
+      "id": "qwen25-3b-bf16",
+      "display_name": "Qwen2.5 3B (bf16)",
+      "hf_id": "Qwen/Qwen2.5-3B-Instruct",
       "params_b": 3,
-      "quant": "IQ4_XS",
-      "size_gb": 1.8,
-      "min_vram_gb": 3.5,
-      "cpu_ok": true,
+      "quant": "bf16",
+      "weights_vram_gb": 6.2,
+      "download_gb": 6.2,
+      "min_vram_gb": 8,
+      "cpu_ok": false,
       "quality_rank": 2,
       "json_reliability": "fair",
       "thinking_model": false,
-      "source": "huggingface:bartowski",
-      "notes": "Default CPU-only fallback; runs acceptably without any GPU. 128K-native but small models track long histories poorly; keep num_ctx at 8192 and rely on the harness's rolling history window.",
-      "native_context": 131072,
-      "recommended_num_ctx": 8192,
-      "kv_cache_gb_at_recommended": 0.6
+      "notes": "Fastest GPU option; no bitsandbytes needed. Small models track long histories poorly; rely on the harness's rolling history window.",
+      "native_context": 32768,
+      "recommended_ctx": 8192
     },
     {
-      "id": "qwen25-7b-iq4",
-      "display_name": "Qwen2.5 7B (IQ4_XS)",
-      "pull_tag": "hf.co/bartowski/Qwen2.5-7B-Instruct-GGUF:IQ4_XS",
+      "id": "qwen25-7b-nf4",
+      "display_name": "Qwen2.5 7B (NF4)",
+      "hf_id": "Qwen/Qwen2.5-7B-Instruct",
       "params_b": 7,
-      "quant": "IQ4_XS",
-      "size_gb": 4.2,
-      "min_vram_gb": 7,
+      "quant": "nf4",
+      "weights_vram_gb": 5.5,
+      "download_gb": 15.2,
+      "min_vram_gb": 10,
       "cpu_ok": false,
       "quality_rank": 3,
       "json_reliability": "good",
       "thinking_model": false,
-      "source": "huggingface:bartowski",
-      "notes": "Strong structured-output family without Qwen3's thinking mode. Native 32K context (128K only via YaRN rope-scaling configs); 32K is ample for the game.",
+      "notes": "Strong structured-output family without Qwen3's thinking mode; coexists with SD-Turbo on a 16 GB card with room to spare.",
       "native_context": 32768,
-      "recommended_num_ctx": 16384,
-      "kv_cache_gb_at_recommended": 1.2
+      "recommended_ctx": 16384
     },
     {
-      "id": "llama31-8b-q4s",
-      "display_name": "Llama 3.1 8B (Q4_K_S)",
-      "pull_tag": "llama3.1:8b-instruct-q4_K_S",
+      "id": "gemma4-e4b-nf4",
+      "display_name": "Gemma 4 E4B (NF4)",
+      "hf_id": "google/gemma-4-E4B-it",
       "params_b": 8,
-      "quant": "Q4_K_S",
-      "size_gb": 4.6,
-      "min_vram_gb": 7.5,
+      "quant": "nf4",
+      "weights_vram_gb": 6.0,
+      "download_gb": 16.0,
+      "min_vram_gb": 10,
       "cpu_ok": false,
       "quality_rank": 4,
       "json_reliability": "good",
       "thinking_model": false,
-      "source": "ollama:official",
-      "notes": "Official Ollama tag (no HF repo needed). Excellent JSON instruction following.",
+      "notes": "The default (llm_client.DEFAULT_MODEL). 8B total / ~4.5B effective parameters via per-layer embeddings; multimodal checkpoint but the game uses text only. Ungated on HF (unlike older gemma repos). Loads through AutoModelForCausalLM on transformers >= 5.14. If NF4 quantization misbehaves with the per-layer embeddings, fall back to --no-4bit (bf16, ~16 GB VRAM, pair with serve.py --no-image).",
       "native_context": 131072,
-      "recommended_num_ctx": 16384,
-      "kv_cache_gb_at_recommended": 1.4
+      "recommended_ctx": 16384
     },
     {
-      "id": "gemma4-e4b",
-      "display_name": "Gemma 4 E4B",
-      "pull_tag": "gemma4:e4b",
-      "params_b": 4,
-      "quant": "default (Q4-class)",
-      "size_gb": 6.0,
-      "min_vram_gb": 9,
+      "id": "qwen25-14b-nf4",
+      "display_name": "Qwen2.5 14B (NF4)",
+      "hf_id": "Qwen/Qwen2.5-14B-Instruct",
+      "params_b": 14,
+      "quant": "nf4",
+      "weights_vram_gb": 9.5,
+      "download_gb": 29.5,
+      "min_vram_gb": 14,
       "cpu_ok": false,
       "quality_rank": 5,
       "json_reliability": "excellent",
       "thinking_model": false,
-      "source": "ollama:official",
-      "notes": "Built for function calling and structured JSON output. Best JSON-per-gigabyte pick. Native context not verified here -- read it from ollama.com/library/gemma4 at setup time and clamp recommended_num_ctx to min(native, 16384).",
-      "native_context": null,
-      "recommended_num_ctx": 16384,
-      "kv_cache_gb_at_recommended": 1.2
+      "notes": "14B-class quality in under 10 GB of VRAM. Best pick for a 16 GB card if the slower tokens/sec is acceptable.",
+      "native_context": 32768,
+      "recommended_ctx": 16384
     },
     {
-      "id": "qwen25-14b-iq4",
-      "display_name": "Qwen2.5 14B (IQ4_XS)",
-      "pull_tag": "hf.co/bartowski/Qwen2.5-14B-Instruct-GGUF:IQ4_XS",
-      "params_b": 14,
-      "quant": "IQ4_XS",
-      "size_gb": 7.9,
-      "min_vram_gb": 11,
+      "id": "qwen25-32b-nf4",
+      "display_name": "Qwen2.5 32B (NF4)",
+      "hf_id": "Qwen/Qwen2.5-32B-Instruct",
+      "params_b": 32,
+      "quant": "nf4",
+      "weights_vram_gb": 19.0,
+      "download_gb": 65.5,
+      "min_vram_gb": 24,
       "cpu_ok": false,
       "quality_rank": 6,
       "json_reliability": "excellent",
       "thinking_model": false,
-      "source": "huggingface:bartowski",
-      "notes": "14B-class quality under 8 GB. Sweet spot for 10-12 GB cards. Native 32K context; ample for the game.",
+      "notes": "For 24 GB+ cards only. Quality ceiling for a non-thinking local game master.",
       "native_context": 32768,
-      "recommended_num_ctx": 16384,
-      "kv_cache_gb_at_recommended": 2.0
-    },
-    {
-      "id": "mistral-small32-q3",
-      "display_name": "Mistral Small 3.2 24B (Q3_K_M)",
-      "pull_tag": "hf.co/mradermacher/Mistral-Small-3.2-24B-Instruct-GGUF:Q3_K_M",
-      "params_b": 24,
-      "quant": "Q3_K_M",
-      "size_gb": 11.0,
-      "min_vram_gb": 14.5,
-      "cpu_ok": false,
-      "quality_rank": 7,
-      "json_reliability": "good",
-      "thinking_model": false,
-      "source": "huggingface:mradermacher",
-      "notes": "24B at 3-bit: strong narration, but Q3 can hurt numeric rule adherence. Prefer qwen25-14b-iq4 if borderline.",
-      "native_context": 131072,
-      "recommended_num_ctx": 16384,
-      "kv_cache_gb_at_recommended": 2.5
-    },
-    {
-      "id": "mistral-small32-iq4",
-      "display_name": "Mistral Small 3.2 24B (IQ4_XS)",
-      "pull_tag": "hf.co/mradermacher/Mistral-Small-3.2-24B-Instruct-GGUF:IQ4_XS",
-      "params_b": 24,
-      "quant": "IQ4_XS",
-      "size_gb": 12.5,
-      "min_vram_gb": 16,
-      "cpu_ok": false,
-      "quality_rank": 8,
-      "json_reliability": "excellent",
-      "thinking_model": false,
-      "source": "huggingface:mradermacher",
-      "notes": "Best fully-on-GPU game master for 16 GB cards (RTX 4080/5080).",
-      "native_context": 131072,
-      "recommended_num_ctx": 16384,
-      "kv_cache_gb_at_recommended": 2.5
-    },
-    {
-      "id": "qwen25-32b-iq4",
-      "display_name": "Qwen2.5 32B (IQ4_XS)",
-      "pull_tag": "hf.co/bartowski/Qwen2.5-32B-Instruct-GGUF:IQ4_XS",
-      "params_b": 32,
-      "quant": "IQ4_XS",
-      "size_gb": 17.0,
-      "min_vram_gb": 21,
-      "cpu_ok": false,
-      "quality_rank": 9,
-      "json_reliability": "excellent",
-      "thinking_model": false,
-      "source": "huggingface:bartowski",
-      "notes": "For 24 GB+ cards only. Quality ceiling for a non-thinking local game master. Native 32K context; ample for the game.",
-      "native_context": 32768,
-      "recommended_num_ctx": 16384,
-      "kv_cache_gb_at_recommended": 3.0
+      "recommended_ctx": 16384
     }
   ],
   "excluded_families": [
@@ -222,28 +162,27 @@
       "reason": "mandatory <think> reasoning output breaks JSON parsing"
     },
     {
-      "family": "qwq / magistral / any 'reasoning' tag",
+      "family": "qwq / magistral / any 'reasoning' model",
       "reason": "same thinking-leakage problem"
     },
     {
       "family": "qwen3 / gpt-oss",
       "reason": "usable only with thinking explicitly disabled; excluded from auto-pick for safety"
+    },
+    {
+      "family": "llama-3.x / gemma <= 3 (HF repos)",
+      "reason": "license-gated on HuggingFace -- would force every player through an account + access request before first launch. gemma-4 repos are ungated (verified anonymously) and allowed."
     }
   ],
   "runtime": {
-    "context_trap": "Ollama defaults to num_ctx=4096 regardless of the model's native maximum. The game history reaches ~6-8k tokens by turn 20, so the wizard MUST set num_ctx or early decisions (and party facts) silently fall out of context.",
-    "how_to_set": {
-      "api": "POST /api/generate with options: {\"num_ctx\": 16384}",
-      "env": "OLLAMA_CONTEXT_LENGTH=16384 ollama serve",
-      "interactive": "/set parameter num_ctx 16384"
-    },
+    "context_note": "text_server.py --ctx (default 16384) bounds prompt + completion tokens and therefore the KV cache. The game history reaches ~6-8k tokens by turn 20; keep --ctx >= 8192 or early decisions (and party facts) silently fall out of context.",
     "game_requirement_tokens": {
       "per_turn_history": 150,
       "system_and_schema": 1500,
       "turns_target": 20,
-      "minimum_num_ctx": 8192,
-      "comfortable_num_ctx": 16384
+      "minimum_ctx": 8192,
+      "comfortable_ctx": 16384
     },
-    "kv_cache_note": "min_vram_gb includes model weights + KV cache at recommended_num_ctx + ~1 GB runtime overhead. KV cache grows linearly with num_ctx; halve num_ctx to reclaim roughly half the listed kv_cache_gb."
+    "kv_cache_note": "min_vram_gb includes model weights + KV cache at recommended_ctx + SD-Turbo + ~1 GB runtime overhead. KV cache grows linearly with --ctx; halve it to reclaim roughly half."
   }
 }
