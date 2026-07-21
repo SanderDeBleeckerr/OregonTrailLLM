@@ -34,8 +34,8 @@ def _get_json(url: str, timeout: float) -> dict | None:
 
 
 def ensure_text_server(host: str, model: str) -> subprocess.Popen | None:
-    """Start text_server.py as a child process so `python serve.py` (or play,
-    or run_experiments) alone is enough -- nobody wants a second terminal.
+    """Start text_server.py as a child process so `python serve.py` (or
+    run_experiments) alone is enough -- nobody wants a second terminal.
 
     Only spawns if nothing is already answering on that host. An already
     running server with a different model is used as-is with a warning:

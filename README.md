@@ -26,7 +26,7 @@ slow while the model loads onto the GPU — that's normal, not a hang. Drop
 
 ## Setup
 
-The game logic (`engine.py`, `serve.py`, `play.py`) is pure stdlib; all the
+The game logic (`engine.py`, `serve.py`) is pure stdlib; all the
 model-hosting weight lives in two sidecar processes, `text_server.py` and
 `image_server.py`, which need the packages below.
 
@@ -72,12 +72,6 @@ master's narrative. Each option shows the effects the model *proposed*, before
 referee note rather than hidden. Choose with the mouse or the `1`/`2`/`3` keys.
 Add `--bind 0.0.0.0` to let others on your LAN play; the LLM still runs on this
 machine. Stdlib only — no Flask needed.
-
-Or in the terminal:
-
-```bash
-python play.py --strategy rules_explicit
-```
 
 ## Run the scrutiny experiments
 
@@ -161,14 +155,13 @@ text_server.py       text generation: HF transformers + torch, own port
 image_server.py      scene images: SD-Turbo via diffusers + CUDA, own port
 serve.py             local web server (stdlib) — the app's browser front end
 web/index.html       the UI: state panel, narrative, options, journal
-play.py              interactive game, terminal version
 run_experiments.py   scripted-bot playthroughs, resumable JSONL logging
 analyze.py           Markdown + LaTeX tables, drift/quiz/violation plots
 results/             generated outputs
 ```
 
-Both front ends drive the same `engine.py`, so anything the web UI shows is
-state the harness already validated — the browser holds no game logic.
+Anything the web UI shows is state the harness (`engine.py`) already
+validated — the browser holds no game logic.
 
 ## Notes for the report
 
