@@ -14,9 +14,9 @@
 # Tested with torch 2.7+cu128 on Python 3.13.
 
 # Text game master (text_server.py):
-transformers
+transformers>=5.14        # the default gemma-4 checkpoint needs >= 5.14
 accelerate
-bitsandbytes
+bitsandbytes; platform_system != "Darwin"   # NF4 is CUDA-only; no macOS wheels
 
 # Scene images (image_server.py) — optional, serve.py --no-image skips it:
 diffusers>=0.31

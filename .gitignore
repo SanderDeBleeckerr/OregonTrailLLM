@@ -1,5 +1,6 @@
 __pycache__/
 CLAUDE.MD
+.claude/
 results/
 report.aux
 report.log
